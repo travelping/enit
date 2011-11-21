@@ -1,0 +1,20 @@
+-record(release, {
+    name :: string(),
+    version :: string(),
+    path :: file:name(),
+    applications :: [atom()],
+    nodename :: node(),
+    cookie :: atom(),
+    config :: enit_config:config()
+}).
+
+-record(status, {
+    alive :: boolean(),
+    running_apps :: [{atom(), string()}],
+    running_config :: enit_config:config(),
+    connected_nodes :: [node()],
+    otp_version :: string(),
+    os_pid :: integer(),
+    uptime_seconds :: integer(),
+    memory_info :: [{atom(), integer()}]
+}).

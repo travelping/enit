@@ -1,0 +1,58 @@
+#!/usr/bin/env escript
+%%! -hidden -connect_all false -smp disable -kernel inet_dist_use_interface {127,0,0,1}
+-mode(compile).
+
+main(Args) ->
+    application:load(enit),
+
+    %% don't start native dns resolver subprocess
+    inet_db:set_lookup([dns]),
+
+    case enit_vm:load_nif() of
+        {error, Error} ->
+            io:format("could not load NIF library: ~s", [Error]),
+            halt(10);
+        ok ->
+            os:cmd("epmd -daemon"),
+            run(Args)
+    end.
+
+run([]) ->
+    SN = escript:script_name(),
+    io:format("Usage: ~s <command> <args...>~n"
+              "~n"
+              "Commands:~n"
+              "    list                -- list installed releases~n"
+              "    startfg <release>   -- start a release VM without detaching~n"
+              "    stop    <release>   -- stop a release VM~n"
+              "    reload  <release>   -- reload configuration of a release VM~n"
+              "    status  <release>   -- get status information on a release~n", [SN]);
+run(["startfg", Release]) ->
+    cli_command(cli_startfg, [Release]);
+run(["stop", Release]) ->
+    cli_command(cli_stop, [Release]);
+run(["reload", Release]) ->
+    cli_command(cli_reload, [Release]);
+run(["status", Release]) ->
+    cli_command(cli_status, [Release]);
+run(["list"]) ->
+    cli_command(cli_list, []);
+run(_) ->
+    io:format("Error: invalid arguments (run with no arguments for help)~n", []),
+    erlang:halt(255).
+
+cli_command(Function, Args) ->
+    try apply(enit, Function, Args) of
+        {error, Error} ->
+            io:format("Error: ~s~n", [enit:format_error(Error)]),
+            halt(1);
+        _ ->
+            halt(0)
+    catch
+        {error, Error} ->
+            io:format("Error: ~s~n", [enit:format_error(Error)]),
+            halt(1)
+        % Class:Other ->
+        %     io:format("Error: ~s:~p~n~p", [Class, Other, erlang:get_stacktrace()]),
+        %     halt(10)
+    end.
