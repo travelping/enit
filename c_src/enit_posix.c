@@ -131,3 +131,4 @@ static ErlNifFunc nif_funcs[] = {
     {"setgid", 1, setgid_nif}
 };
 ERL_NIF_INIT(enit_vm, nif_funcs, NULL, NULL, NULL, NULL)
+

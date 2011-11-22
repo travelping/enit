@@ -1,10 +1,18 @@
-LIB=../priv/enit_posix.so
+PRIVDIR := ../priv
 
-all: $(LIB) 
+CC := gcc
+RM := rm
 
-$(LIB) : enit_posix.c
-	$(CC) -std=gnu99 -g -O0 -Wall -shared -fpic -o $@ $^
+CFLAGS ?= -O2
+
+override CFLAGS += -std=gnu99 -Wall -fpic
+override LDFLAGS += -shared -fpic
+
+all : $(PRIVDIR)/enit_posix.so
+
+$(PRIVDIR)/enit_posix.so : enit_posix.o
+	$(CC) $(LDFLAGS) -o $@ $^
 
 clean:
-	rm -f $(LIB) 
+	$(RM) -f $(PRIVDIR)/enit_posix.so enit_posix.o
 
