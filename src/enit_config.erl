@@ -60,7 +60,7 @@ dedup_keys(Proplist) ->
     dedup_keys1(lists:keysort(1, Proplist)).
 
 dedup_keys1(Proplist) ->
-    lists:foldl(fun ({K, V1}, [{K, V2} | R]) ->
+    lists:foldr(fun ({K, V1}, [{K, V2} | R]) ->
                         [{K, plmerge(V1, V2)} | R];
                     ({K, V}, R) ->
                         [{K, V} | R]
@@ -69,7 +69,7 @@ dedup_keys1(Proplist) ->
 %% merge proplists
 plmerge(List1, List2) ->
     M1 = [{K, V} || {K, V} <- List1, not proplists:is_defined(K, List2)],
-    M1 ++ List2.
+    lists:keysort(1, M1 ++ List2).
 
 pldiff(List1, List2) ->
     pldiff(lists:keysort(1, List1), lists:keysort(1, List2), [], [], []).
