@@ -6,7 +6,11 @@
 -define(DEFAULT_STOP_TIMEOUT, 10000).
 
 load_nif() ->
-    Lib = filename:join(code:priv_dir(enit), "enit_posix"),
+    PrivDir = case code:priv_dir(enit) of
+        {error, _} -> "priv";
+        X -> X
+    end,
+    Lib = filename:join(PrivDir, "enit_posix"),
     erlang:load_nif(Lib, 0).
 
 erl_binary() ->
@@ -107,14 +111,14 @@ stop(#release{nodename = Nodename, config = Config}) ->
             throw({error, ?MODULE, {stop_timeout, Nodename, StopTimeout}})
     end.
 
--spec exec([string()]) -> {error, atom()} | no_return().
+-spec exec([string(), ...]) -> {error, file:posix()} | no_return().
 exec(_L) ->
     error(nif_not_loaded).
 
--spec setuid(string()) -> ok | {error, atom()}.
+-spec setuid(string()) -> ok | {error, file:posix()}.
 setuid(_User) ->
     error(nif_not_loaded).
 
--spec setgid(string()) -> ok | {error, atom()}.
+-spec setgid(string()) -> ok | {error, file:posix()}.
 setgid(_Group) ->
     error(nif_not_loaded).
