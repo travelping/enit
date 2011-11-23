@@ -37,7 +37,7 @@ show_brief_info(#release{name = Name, version = Version, nodename = Nodename}, S
         false ->
             RunDesc = "not running"
     end,
-    io:format("* ~s-~s [~s] (~s)~n", [Name, Version, Nodename, RunDesc]).
+    io:format("* ~s ~s [~s] (~s)~n", [Name, Version, Nodename, RunDesc]).
 
 cli_status(Release) ->
     case get_release_info(Release) of
@@ -75,7 +75,7 @@ show_status(Status = #status{alive = true}) ->
             show_table([{"", Node} || Node <- ConnNodes, Node /= node()])
     end,
     io:format("Running Applications:~n", []),
-    show_table([{"", io_lib:format("~s-~s", [App,Vsn])} || {App, Vsn} <- Status#status.running_apps]),
+    show_table([{"", App, Vsn} || {App, Vsn} <- lists:keysort(1, Status#status.running_apps)]),
     io:format("Memory Usage (erlang:memory/0):~n", []),
     show_table([{"", mem_item(Item), format_mem(Bytes)} || {Item, Bytes} <- Status#status.memory_info]).
 

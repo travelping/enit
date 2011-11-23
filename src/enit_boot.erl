@@ -6,7 +6,7 @@
 start([RelDir, ConfDir, ReleaseName]) ->
     try
         {ok, Info} = enit:get_release_info(RelDir, ConfDir, ReleaseName),
-        io:format("ENIT: booting release ~s-~s~n", [Info#release.name, Info#release.version]),
+        io:format("ENIT: booting release ~s ~s~n", [Info#release.name, Info#release.version]),
 
         AllApplications = load_specs(Info#release.applications, []),
 
@@ -15,7 +15,9 @@ start([RelDir, ConfDir, ReleaseName]) ->
 
         IncludedBy = build_included_by(AllApplications),
         RunningApplications = gb_sets:from_list([App || {App, _, _} <- application:which_applications()]),
-        start_apps(Info#release.applications, RunningApplications, IncludedBy)
+        start_apps(Info#release.applications, RunningApplications, IncludedBy),
+
+        io:format("ENIT: release ~s ~s started~n", [Info#release.name, Info#release.version])
     catch
         Error ->
             io:format("Error: ~s~n", [format_error(Error)]),
