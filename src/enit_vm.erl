@@ -1,6 +1,7 @@
 -module(enit_vm).
 -export([start/1, start/4, stop/1]).
--export([load_nif/0, exec/1, setuid/1, setgid/1]).
+-export([load_nif/0]).
+-export([exec/1, getpwnam/1, getgrnam/1, setuid/1, setgid/1]).
 
 -include("enit.hrl").
 -define(DEFAULT_STOP_TIMEOUT, 10000).
@@ -43,11 +44,16 @@ set_config_user_and_group(Config) ->
         undefined ->
             set_config_user(Config);
         Group ->
-            case setgid(Group) of
-                ok ->
-                    set_config_user(Config);
+            case getgrnam(Group) of
                 {error, Error} ->
-                    {error, {setgid, Group, Error}}
+                    {getgrnam, Group, Error};
+                {ok, Grp} ->
+                    case setgid(proplists:get_value(gid, Grp)) of
+                        ok ->
+                            set_config_user(Config);
+                        {error, Error} ->
+                            {error, {setgid, Group, Error}}
+                    end
             end
     end.
 
@@ -56,11 +62,16 @@ set_config_user(Config) ->
         undefined ->
             ok;
         User ->
-            case setuid(User) of
-                ok ->
-                    ok;
+            case getpwnam(User) of
                 {error, Error} ->
-                    {error, {setuid, User, Error}}
+                    {getpwnam, User, Error};
+                {ok, Pwd} ->
+                    case setuid(proplists:get_value(uid, Pwd)) of
+                        ok ->
+                            ok;
+                        {error, Error} ->
+                            {error, {setuid, User, Error}}
+                    end
             end
     end.
 
@@ -112,13 +123,21 @@ stop(#release{nodename = Nodename, config = Config}) ->
     end.
 
 -spec exec([string(), ...]) -> {error, file:posix()} | no_return().
-exec(_L) ->
+exec(_Argv) ->
     error(nif_not_loaded).
 
--spec setuid(string()) -> ok | {error, file:posix()}.
+-spec getpwnam(nonempty_string()) -> {ok, [{atom(), term()}]} | {error, file:posix()}.
+getpwnam(_Name) ->
+    error(nif_not_loaded).
+
+-spec getgrnam(nonempty_string()) -> {ok, [{atom(), term()}]} | {error, file:posix()}.
+getgrnam(_Name) ->
+    error(nif_not_loaded).
+
+-spec setuid(non_neg_integer()) -> ok | {error, file:posix()}.
 setuid(_User) ->
     error(nif_not_loaded).
 
--spec setgid(string()) -> ok | {error, file:posix()}.
+-spec setgid(non_neg_integer()) -> ok | {error, file:posix()}.
 setgid(_Group) ->
     error(nif_not_loaded).
