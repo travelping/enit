@@ -1,5 +1,5 @@
 -module(enit_vm).
--export([start/2, start/5, stop/1]).
+-export([startfg/2, startfg/5, start_remsh/1, stop/1]).
 
 -include("enit.hrl").
 -define(DEFAULT_STOP_TIMEOUT, 10000).
@@ -7,10 +7,10 @@
 erl_binary() ->
     filename:join([code:root_dir(), "bin", "erl"]).
 
-start(Rel = #release{}, Options) ->
-    start(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config, Options).
+startfg(Rel = #release{}, Options) ->
+    startfg(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config, Options).
 
-start(RelName, NodeName, Cookie, Config, Options) ->
+startfg(RelName, NodeName, Cookie, Config, Options) ->
     {ok, RelPath} = application:get_env(enit, release_dir),
     {ok, ConfPath} = application:get_env(enit, config_dir),
     OptionString = lists:flatten(io_lib:format("~p", [Options])),
@@ -21,15 +21,25 @@ start(RelName, NodeName, Cookie, Config, Options) ->
                    "-run", "enit_boot", "start", RelPath, ConfPath, RelName, OptionString],
     ConfigArgs = build_erl_args(Config),
 
-    %% disconnect distribution, because epmd gets confused if we don't
-    net_kernel:stop(),
-
     case set_config_user_and_group(Config) of
         ok ->
-            enit_posix:exec([erl_binary()] ++ DefaultArgs ++ ConfigArgs);
+            exec_erlang(ConfigArgs ++ DefaultArgs);
         {error, Error} ->
             {error, Error}
     end.
+
+start_remsh(Release) ->
+    Args = ["-remsh", atom_to_list(Release#release.nodename),
+            "-setcookie", atom_to_list(Release#release.cookie),
+            "-sname", atom_to_list(enit:unique_nodename("enit-remsh")),
+            "-hidden", "-smp", "disable"],
+    KernelArgs = build_kernel_args(proplists:get_value(kernel, Release#release.config, [])),
+    exec_erlang(Args ++ KernelArgs).
+
+exec_erlang(CmdlineArgs) ->
+    %% disconnect distribution, because epmd gets confused if we don't
+    net_kernel:stop(),
+    enit_posix:exec([erl_binary() | CmdlineArgs]).
 
 set_config_user_and_group(Config) ->
     case enit_config:get(node, run_as_group, Config) of
@@ -68,9 +78,7 @@ set_config_user(Config) ->
     end.
 
 build_erl_args([{kernel, Params} | R]) ->
-    lists:flatmap(fun ({K, V}) ->
-                          ["-kernel", atom_to_list(K), lists:flatten(io_lib:format("~p", [V]))]
-                  end, Params) ++ build_erl_args(R);
+    build_kernel_args(Params) ++ build_erl_args(R);
 build_erl_args([{node, Params} | R]) ->
     SMP = case proplists:get_value(smp, Params) of
               undefined ->
@@ -95,6 +103,11 @@ build_erl_args([_ | R]) ->
     build_erl_args(R);
 build_erl_args([]) ->
     [].
+
+build_kernel_args(Params) ->
+    lists:flatmap(fun ({K, V}) ->
+                          ["-kernel", atom_to_list(K), lists:flatten(io_lib:format("~p", [V]))]
+                  end, Params).
 
 stop(#release{nodename = Nodename, config = Config}) ->
     erlang:monitor_node(Nodename, true),

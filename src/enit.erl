@@ -1,7 +1,7 @@
 -module(enit).
--export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2]).
+-export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2]).
 -export([get_release_info/1, get_release_info/3, get_status/1, format_error/1]).
--export([parse_cmdline/2, to_str/1]).
+-export([unique_nodename/1, parse_cmdline/2, to_str/1]).
 
 -include("enit.hrl").
 
@@ -118,6 +118,14 @@ cli_stop(Release, Options) ->
             Error
     end.
 
+cli_remsh(Release, _Options) ->
+    case get_release_info(Release) of
+        {ok, Info} ->
+            enit_vm:start_remsh(Info);
+        Error ->
+            Error
+    end.
+
 %% ----------------------------------------------------------------------------------------------------
 %% -- Release Info
 -spec get_release_info(string()) -> {ok, #release{}} | {error, term()}.
@@ -184,6 +192,25 @@ get_config(RelDir, ConfigDir, Release) ->
     UserConfig = filename:join([ConfigDir, Release, "user.config"]),
     enit_config:read_files([BaseConfig, UserConfig]).
 
+unique_nodename(Prefix) ->
+    unique_nodename(Prefix, 5).
+
+unique_nodename(Prefix, 0) ->
+    gen_nodename(Prefix ++ integer_to_list(erlang:phash2(make_ref(), 20)));
+unique_nodename(Prefix, Retries) ->
+    Name = Prefix ++ integer_to_list(erlang:phash2(make_ref(), 20)),
+    case erl_epmd:names() of
+        {ok, EpmdNames} ->
+            case lists:keymember(Name, 1, EpmdNames) of
+                true ->
+                    unique_nodename(Prefix, Retries -1);
+                false ->
+                    gen_nodename(Name)
+            end;
+        _ ->
+            gen_nodename(Name)
+    end.
+
 gen_nodename(Relname) ->
     {ok, Hostname} = inet:gethostname(),
     list_to_atom(Relname ++ "@" ++ Hostname).
@@ -225,7 +252,7 @@ maybe_start_network() ->
         true ->
             ok;
         false ->
-            OwnNodename = gen_nodename("enit"),
+            OwnNodename = unique_nodename("enit"),
             net_kernel:monitor_nodes(true),
             net_kernel:start([OwnNodename, shortnames]),
             receive
