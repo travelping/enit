@@ -20,6 +20,7 @@
 #include <stdint.h>
 #include <pwd.h>
 #include <grp.h>
+#include <syslog.h>
 
 #include <erl_nif.h>
 #include <erl_driver.h>
@@ -213,6 +214,25 @@ NIF_SIG(setgid)
 	return enif_make_atom(env, "ok");
 }
 
+NIF_SIG(syslog)
+{
+	unsigned int level;
+	char buf[255];
+
+	assert(argc == 2);
+
+	if (!enif_get_uint(env, argv[0], &level))
+		return enif_make_badarg(env);
+
+	if (enif_get_string(env, argv[1], buf, sizeof(buf), ERL_NIF_LATIN1) < 1)
+		return enif_make_badarg(env);
+
+	openlog("enit", 0, LOG_USER); /* FIXME */
+	syslog(level, "%s", buf);
+
+	return enif_make_atom(env, "ok");
+}
+
 static ErlNifFunc nif_funcs[] = {
 #define NIF_MAP(NAME, ARITY) \
 	{#NAME, ARITY, NAME##_nif}
@@ -220,7 +240,8 @@ static ErlNifFunc nif_funcs[] = {
 	NIF_MAP(getpwnam,	1),
 	NIF_MAP(getgrnam,	1),
 	NIF_MAP(setuid,		1),
-	NIF_MAP(setgid,		1)
+	NIF_MAP(setgid,		1),
+	NIF_MAP(syslog,		2)
 #undef	NIF_MAP
 };
 ERL_NIF_INIT(enit_vm, nif_funcs, NULL, NULL, NULL, NULL)
