@@ -1,5 +1,5 @@
 -module(enit).
--export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2]).
+-export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2, cli_traceip/2, cli_tracefile/2]).
 -export([get_release_info/1, get_release_info/3, get_status/1, format_error/1]).
 -export([unique_nodename/1, parse_cmdline/2, to_str/1]).
 
@@ -124,6 +124,49 @@ cli_remsh(Release, _Options) ->
             enit_vm:start_remsh(Info);
         Error ->
             Error
+    end.
+
+cli_traceip(PortString, Options) ->
+    case catch (list_to_integer(PortString)) of
+        {'EXIT', _} ->
+            {error, {badport, PortString}};
+        Port ->
+            Host = proplists:get_value(host, Options, "127.0.0.1"),
+            case try_resolve(Host) of
+                {ok, AddrString} ->
+                    enit_log:info("connecting TCP trace client to ~s:~b...~n", [AddrString, Port]),
+                    join_pid(dbg:trace_client(ip, {AddrString, Port}));
+                Error ->
+                    Error
+            end
+    end.
+
+try_resolve(Host) ->
+    case inet:getaddr(Host, inet) of
+        {ok, Addr} ->
+            {ok, inet_parse:ntoa(Addr)};
+        {error, Posix} ->
+            io:format(standard_error, "unable to resolve ~s (~s)~n", [Host, Posix]),
+            {error, {resolve, Posix}}
+    end.
+
+cli_tracefile(File, Options) ->
+    case filelib:is_file(File) of
+        true ->
+            case proplists:get_value(follow, [Options], false) of
+                false ->
+                    join_pid(dbg:trace_client(file, File));
+                true ->
+                    join_pid(dbg:trace_client(follow_file, File))
+            end;
+        false ->
+            {error, {faccess, File}}
+    end.
+
+join_pid(Pid) ->
+    MRef = erlang:monitor(process, Pid),
+    receive
+        {'DOWN', MRef, process, Pid, _} -> ok
     end.
 
 %% ----------------------------------------------------------------------------------------------------
