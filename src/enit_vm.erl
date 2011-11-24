@@ -1,32 +1,24 @@
 -module(enit_vm).
--export([start/1, start/4, stop/1]).
--export([load_nif/0]).
--export([exec/1, getpwnam/1, getgrnam/1, setuid/1, setgid/1, syslog/3]).
+-export([start/2, start/5, stop/1]).
 
 -include("enit.hrl").
 -define(DEFAULT_STOP_TIMEOUT, 10000).
 
-load_nif() ->
-    PrivDir = case code:priv_dir(enit) of
-        {error, _} -> "priv";
-        X -> X
-    end,
-    Lib = filename:join(PrivDir, "enit_posix"),
-    erlang:load_nif(Lib, 0).
-
 erl_binary() ->
     filename:join([code:root_dir(), "bin", "erl"]).
 
-start(Rel = #release{}) ->
-    start(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config).
+start(Rel = #release{}, Options) ->
+    start(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config, Options).
 
-start(RelName, NodeName, Cookie, Config) ->
+start(RelName, NodeName, Cookie, Config, Options) ->
     {ok, RelPath} = application:get_env(enit, release_dir),
     {ok, ConfPath} = application:get_env(enit, config_dir),
+    OptionString = lists:flatten(io_lib:format("~p", [Options])),
+
     DefaultArgs = ["-noshell",
                    "-sname", atom_to_list(NodeName),
                    "-setcookie", atom_to_list(Cookie),
-                   "-run", "enit_boot", "start", RelPath, ConfPath, RelName],
+                   "-run", "enit_boot", "start", RelPath, ConfPath, RelName, OptionString],
     ConfigArgs = build_erl_args(Config),
 
     %% disconnect distribution, because epmd gets confused if we don't
@@ -34,7 +26,7 @@ start(RelName, NodeName, Cookie, Config) ->
 
     case set_config_user_and_group(Config) of
         ok ->
-            exec([erl_binary()] ++ DefaultArgs ++ ConfigArgs);
+            enit_posix:exec([erl_binary()] ++ DefaultArgs ++ ConfigArgs);
         {error, Error} ->
             {error, Error}
     end.
@@ -44,11 +36,11 @@ set_config_user_and_group(Config) ->
         undefined ->
             set_config_user(Config);
         Group ->
-            case getgrnam(Group) of
+            case enit_posix:getgrnam(Group) of
                 {error, Error} ->
-                    {getgrnam, Group, Error};
+                    {error, {getgrnam, Group, Error}};
                 {ok, Grp} ->
-                    case setgid(proplists:get_value(gid, Grp)) of
+                    case enit_posix:setgid(proplists:get_value(gid, Grp)) of
                         ok ->
                             set_config_user(Config);
                         {error, Error} ->
@@ -62,11 +54,11 @@ set_config_user(Config) ->
         undefined ->
             ok;
         User ->
-            case getpwnam(User) of
+            case enit_posix:getpwnam(User) of
                 {error, Error} ->
-                    {getpwnam, User, Error};
+                    {error, {getpwnam, User, Error}};
                 {ok, Pwd} ->
-                    case setuid(proplists:get_value(uid, Pwd)) of
+                    case enit_posix:setuid(proplists:get_value(uid, Pwd)) of
                         ok ->
                             ok;
                         {error, Error} ->
@@ -121,47 +113,3 @@ stop(#release{nodename = Nodename, config = Config}) ->
         StopTimeout ->
             throw({error, ?MODULE, {stop_timeout, Nodename, StopTimeout}})
     end.
-
--spec exec([string(), ...]) -> {error, file:posix()} | no_return().
-exec(_Argv) ->
-    error(nif_not_loaded).
-
--spec getpwnam(nonempty_string()) -> {ok, [{atom(), term()}]} | {error, file:posix()}.
-getpwnam(_Name) ->
-    error(nif_not_loaded).
-
--spec getgrnam(nonempty_string()) -> {ok, [{atom(), term()}]} | {error, file:posix()}.
-getgrnam(_Name) ->
-    error(nif_not_loaded).
-
--spec setuid(non_neg_integer()) -> ok | {error, file:posix()}.
-setuid(_User) ->
-    error(nif_not_loaded).
-
--spec setgid(non_neg_integer()) -> ok | {error, file:posix()}.
-setgid(_Group) ->
-    error(nif_not_loaded).
-
--spec syslog(sasl_syslog:severity(), io:format(), [term()]) -> ok.
-syslog(Level, Format, Data) ->
-    Msg = lists:flatten(io_lib:format(Format, Data)),
-    syslog(severity_int(Level), Msg).
-
--spec syslog(non_neg_integer(), string()) -> ok.
-syslog(_Level, _Msg) ->
-    error(nif_not_loaded).
-
-severity_int(I) when is_integer(I), I >= 0, I =< 7 -> I;
-severity_int(emergency)                            -> 0;
-severity_int(emerg)                                -> 0;
-severity_int(alert)                                -> 1;
-severity_int(critical)                             -> 2;
-severity_int(crit)                                 -> 2;
-severity_int(error)                                -> 3;
-severity_int(err)                                  -> 3;
-severity_int(warning)                              -> 4;
-severity_int(notice)                               -> 5;
-severity_int(informational)                        -> 6;
-severity_int(info)                                 -> 6;
-severity_int(debug)                                -> 7.
-

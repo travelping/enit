@@ -2,22 +2,17 @@
 %%! -hidden -connect_all false -smp disable -kernel inet_dist_use_interface {127,0,0,1}
 -mode(compile).
 
-main(Args) ->
+main([Command | Args]) ->
     application:load(enit),
 
     %% don't start native dns resolver subprocess
     inet_db:set_lookup([dns]),
+    enit_posix:load_nif_or_die(),
 
-    case enit_vm:load_nif() of
-        {error, Error} ->
-            io:format("could not load NIF library: ~s", [Error]),
-            halt(10);
-        ok ->
-            os:cmd("epmd -daemon"),
-            run(Args)
-    end.
-
-run([]) ->
+    %% ensure epmd is running
+    os:cmd("epmd -daemon"),
+    run(Command, Args);
+main(_) ->
     SN = escript:script_name(),
     io:format("Usage: ~s <command> <args...>~n"
               "~n"
@@ -26,33 +21,49 @@ run([]) ->
               "    startfg <release>   -- start a release VM without detaching~n"
               "    stop    <release>   -- stop a release VM~n"
               "    reload  <release>   -- reload configuration of a release VM~n"
-              "    status  <release>   -- get status information on a release~n", [SN]);
-run(["startfg", Release]) ->
-    cli_command(cli_startfg, [Release]);
-run(["stop", Release]) ->
-    cli_command(cli_stop, [Release]);
-run(["reload", Release]) ->
-    cli_command(cli_reload, [Release]);
-run(["status", Release]) ->
-    cli_command(cli_status, [Release]);
-run(["list"]) ->
-    cli_command(cli_list, []);
-run(_) ->
-    io:format("Error: invalid arguments (run with no arguments for help)~n", []),
+              "    status  <release>   -- get status information on a release~n", [SN]).
+
+run("startfg", Argv) ->
+    cli_command("startfg", Argv, 1, syslog_options());
+run("stop", Argv) ->
+    cli_command("stop", Argv, 1, syslog_options());
+run("reload", Argv) ->
+    cli_command("reload", Argv, 1, []);
+run("status", Argv) ->
+    cli_command("status", Argv, 1, []);
+run("list", Argv) ->
+    cli_command("list", Argv, 0, []);
+run(_, _) ->
+    io:format("Error: unknown command (run with no arguments for help)~n", []),
     erlang:halt(255).
 
-cli_command(Function, Args) ->
-    try apply(enit, Function, Args) of
+syslog_options() ->
+    [{flag, syslog, ["-s", "--syslog"]}].
+
+cli_command(Command, Argv, ArgCount, OptionSpec) ->
+    case enit:parse_cmdline(Argv, OptionSpec) of
         {error, Error} ->
-            io:format("Error: ~s~n", [enit:format_error(Error)]),
+            io:format("Error: invalid options: ~s~n", [enit:format_error(Error)]),
+            erlang:halt(255);
+        {ok, Options, Args} when length(Args) == ArgCount ->
+            cli_command1(Command, Args, Options);
+        {ok, _Options, _Args} ->
+            io:format("Error: invalid number of arguments (command ~s expects ~b)~n", [Command, ArgCount]),
+            erlang:halt(255)
+    end.
+
+cli_command1(Command, Args, Options) ->
+    try apply(enit, list_to_atom("cli_" ++ Command), Args ++ [Options]) of
+        {error, Error} ->
+            enit_log:error("Error: ~s~n", [enit:format_error(Error)]),
             halt(1);
         _ ->
             halt(0)
     catch
         {error, Error} ->
-            io:format("Error: ~s~n", [enit:format_error(Error)]),
-            halt(1)
-        % Class:Other ->
-        %     io:format("Error: ~s:~p~n~p", [Class, Other, erlang:get_stacktrace()]),
-        %     halt(10)
+            enit_log:error("Error: ~s~n", [enit:format_error(Error)]),
+            halt(1);
+        Class:Other ->
+            enit_log:error("enit crashed: ~s:~p~n~p", [Class, Other, erlang:get_stacktrace()]),
+            halt(10)
     end.

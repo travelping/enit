@@ -244,5 +244,5 @@ static ErlNifFunc nif_funcs[] = {
 	NIF_MAP(syslog,		2)
 #undef	NIF_MAP
 };
-ERL_NIF_INIT(enit_vm, nif_funcs, NULL, NULL, NULL, NULL)
+ERL_NIF_INIT(enit_posix, nif_funcs, NULL, NULL, NULL, NULL)
 

@@ -3,26 +3,34 @@
 
 -include("enit.hrl").
 
-start([RelDir, ConfDir, ReleaseName]) ->
+start([RelDir, ConfDir, ReleaseName, OptionString]) ->
     try
+        Options = parse_term(OptionString),
+        enit_log:init(Options),
+
         {ok, Info} = enit:get_release_info(RelDir, ConfDir, ReleaseName),
-        io:format("ENIT: booting release ~s ~s~n", [Info#release.name, Info#release.version]),
+        enit_log:info("booting release ~s ~s~n", [Info#release.name, Info#release.version]),
 
         AllApplications = load_specs(Info#release.applications, []),
 
-        io:format("ENIT: applying bootstrap configuration~n"),
+        enit_log:info("applying bootstrap configuration~n", []),
         apply_config(Info#release.config),
 
         IncludedBy = build_included_by(AllApplications),
         RunningApplications = gb_sets:from_list([App || {App, _, _} <- application:which_applications()]),
         start_apps(Info#release.applications, RunningApplications, IncludedBy),
 
-        io:format("ENIT: release ~s ~s started~n", [Info#release.name, Info#release.version])
+        enit_log:info("release ~s ~s started~n", [Info#release.name, Info#release.version])
     catch
         Error ->
-            io:format("Error: ~s~n", [format_error(Error)]),
+            enit_log:error("Error: ~s~n", [format_error(Error)]),
             halt(1)
     end.
+
+parse_term(String) ->
+    {ok, Toks, _} = erl_scan:string(String ++ "."),
+    {ok, Term} = erl_parse:parse_term(Toks),
+    Term.
 
 format_error(Error) ->
     enit:format_error(Error).
@@ -75,7 +83,7 @@ start_apps(AppsToStart, AppsStarted, IncludedBy) ->
                                        start_app(Spec, IncludedBy, gb_sets:empty(), CurActions, CurStarted)
                                end, {[], AppsStarted}, AppsToStart),
     lists:foreach(fun ({start, App}) ->
-                          io:format("ENIT: starting ~s~n", [App]),
+                          enit_log:info("starting ~s~n", [App]),
                           case application:start(App) of
                               ok -> ok;
                               {error, {already_started, App}} -> ok;

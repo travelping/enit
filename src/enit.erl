@@ -1,13 +1,13 @@
 -module(enit).
--export([cli_list/0, cli_status/1, cli_startfg/1, cli_stop/1]).
+-export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2]).
 -export([get_release_info/1, get_release_info/3, get_status/1, format_error/1]).
--export([to_str/1]).
+-export([parse_cmdline/2, to_str/1]).
 
 -include("enit.hrl").
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- CLI commands
-cli_list() ->
+cli_list(_Options) ->
     {ok, Dir} = application:get_env(enit, release_dir),
     case file:list_dir(Dir) of
         {ok, []} ->
@@ -39,7 +39,7 @@ show_brief_info(#release{name = Name, version = Version, nodename = Nodename}, S
     end,
     io:format("* ~s ~s [~s] (~s)~n", [Name, Version, Nodename, RunDesc]).
 
-cli_status(Release) ->
+cli_status(Release, _Options) ->
     case get_release_info(Release) of
         {ok, Info} ->
             case get_status(Info) of
@@ -86,14 +86,15 @@ mem_item(Item) ->
     Str = atom_to_list(Item),
     string:to_upper([hd(Str)]) ++ [tl(Str)] ++ ":".
 
-cli_startfg(Release) ->
+cli_startfg(Release, Options) ->
+    enit_log:init(Options),
     case get_release_info(Release) of
         {ok, Info} ->
             case get_status(Info) of
                 {ok, #status{alive = true}} ->
                     {error, {already_running, Release}};
                 {ok, #status{alive = false}} ->
-                    enit_vm:start(Info);
+                    enit_vm:start(Info, Options);
                 Error ->
                     Error
             end;
@@ -101,7 +102,8 @@ cli_startfg(Release) ->
             Error
     end.
 
-cli_stop(Release) ->
+cli_stop(Release, Options) ->
+    enit_log:init(Options),
     case get_release_info(Release) of
         {ok, Info} ->
             case get_status(Info) of
@@ -324,3 +326,54 @@ format_mem(Bytes, [{S, _U} | R]) when Bytes =< S ->
     format_mem(Bytes, R);
 format_mem(Bytes, [{S, U} | _R]) ->
     [integer_to_list(Bytes div S), " ", U].
+
+%% ----------------------------------------------------------------------------------------------------
+%% -- getopt
+-type option() :: {option, Name::atom(), ArgSize::pos_integer(), [string()]}.
+-type flag()   :: {flag, Name::atom(), [string()]}.
+-spec parse_cmdline([string()], [option() | flag()]) -> {[tuple(), ...], [string(), ...]}.
+
+parse_cmdline(Args, OptionDesc) ->
+    try parse_options(Args, OptionDesc, false, [], []) of
+        {Options, RemainingArgs} ->
+            {ok, Options, RemainingArgs}
+    catch
+        throw:{error, Error} ->
+            {error, {parse_cmdline, Error}}
+    end.
+
+parse_options([], _OptDesc, _NextIsArg, Result, Args) ->
+    {Result, lists:reverse(Args)};
+parse_options([Arg | Rest], OptDesc, NextIsArg, Result, Args) ->
+    case Arg of
+        "--" ->
+            parse_options(Rest, OptDesc, true, Result, Args);
+        "-"  ++ _Name when not NextIsArg ->
+            {ThisOption, TheRest} = parse_option(Arg, Rest, OptDesc),
+            NewResult = [ThisOption | Result],
+            parse_options(TheRest, OptDesc, NextIsArg, NewResult, Args);
+        _ ->
+            parse_options(Rest, OptDesc, NextIsArg, Result, [Arg | Args])
+    end.
+
+parse_option(Option, Rest, OptDefs) ->
+    case find_option(Option, OptDefs) of
+        {option, Name, ArgSize, _Flags} ->
+            case catch lists:split(ArgSize, Rest) of
+                {'EXIT', _} ->
+                    throw({error, {option_args, Option, ArgSize}});
+                {OptionArgs, Remaining} ->
+                    {list_to_tuple([Name | OptionArgs]), Remaining}
+            end;
+        {flag, Name, _Flags} ->
+            {{Name, true}, Rest};
+        undefined ->
+            throw({error, {unknown_option, Option}})
+    end.
+
+find_option(_Option, []) -> undefined;
+find_option(Option, [OptDef | Rest]) ->
+    case lists:member(Option, element(tuple_size(OptDef), OptDef)) of
+        false -> find_option(Option, Rest);
+        true  -> OptDef
+    end.
