@@ -2,6 +2,8 @@
 -export([startfg/2, startfg/5, start_remsh/1, stop/1]).
 
 -include("enit.hrl").
+-include("enit_posix.hrl").
+
 -define(DEFAULT_STOP_TIMEOUT, 10000).
 
 erl_binary() ->
@@ -49,8 +51,8 @@ set_config_user_and_group(Config) ->
             case enit_posix:getgrnam(Group) of
                 {error, Error} ->
                     {error, {getgrnam, Group, Error}};
-                {ok, Grp} ->
-                    case enit_posix:setgid(proplists:get_value(gid, Grp)) of
+                {ok, #posix_group{gr_gid = Gid}} ->
+                    case enit_posix:setgid(Gid) of
                         ok ->
                             set_config_user(Config);
                         {error, Error} ->
@@ -67,8 +69,8 @@ set_config_user(Config) ->
             case enit_posix:getpwnam(User) of
                 {error, Error} ->
                     {error, {getpwnam, User, Error}};
-                {ok, Pwd} ->
-                    case enit_posix:setuid(proplists:get_value(uid, Pwd)) of
+                {ok, #posix_passwd{pw_uid = Uid}} ->
+                    case enit_posix:setuid(Uid) of
                         ok ->
                             ok;
                         {error, Error} ->

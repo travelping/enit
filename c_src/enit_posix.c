@@ -53,6 +53,32 @@ error2tuple(ErlNifEnv *env, int error)
 	return tag_term(env, "error", enif_make_atom(env, erl_errno_id(error)));
 }
 
+static ERL_NIF_TERM
+list_of_strings(ErlNifEnv *env, const char **array)
+{
+	unsigned int len;
+
+	ERL_NIF_TERM *terms = NULL;
+	ERL_NIF_TERM list;
+
+	for (len = 0; array[len] != NULL; len++);
+	if (len) {
+		terms = enif_alloc(sizeof(ERL_NIF_TERM) * len);
+		if (terms != NULL) {
+			for (int i = 0; i < len; i++)
+				terms[i] = enif_make_string(env, array[i],
+							    ERL_NIF_LATIN1);
+		}
+	}
+
+	list = enif_make_list_from_array(env, terms, len);
+
+	if (terms != NULL)
+		enif_free(terms);
+
+	return list;
+}
+
 static inline void
 free_argv(char **argv)
 {
@@ -129,6 +155,7 @@ NIF_SIG(getpwnam)
 	char pwd_buf[size];
 
 	struct passwd passwd, *pwd_p;
+	ERL_NIF_TERM record;
 
 	assert(argc == 1);
 
@@ -140,17 +167,19 @@ NIF_SIG(getpwnam)
 	if (pwd_p == NULL)
 		return error2tuple(env, errno ? : ENOENT);
 
-#define PW_TAG(TYPE, NAME) \
-	tag_##TYPE(env, #NAME, passwd.pw_##NAME)
-	return tag_term(env, "ok",
-			enif_make_list7(env, PW_TAG(string, name),
-					     PW_TAG(string, passwd),
-					     PW_TAG(uint,   uid),
-					     PW_TAG(uint,   gid),
-					     PW_TAG(string, gecos),
-					     PW_TAG(string, dir),
-					     PW_TAG(string, shell)));
-#undef	PW_TAG
+	/*
+	 * see enit_posix.hrl
+	 */
+	record = enif_make_tuple8(env, enif_make_atom(env, "posix_passwd"),
+				  enif_make_string(env, passwd.pw_name, ERL_NIF_LATIN1),
+				  enif_make_string(env, passwd.pw_passwd, ERL_NIF_LATIN1),
+				  enif_make_uint(env, passwd.pw_uid),
+				  enif_make_uint(env, passwd.pw_gid),
+				  enif_make_string(env, passwd.pw_gecos, ERL_NIF_LATIN1),
+				  enif_make_string(env, passwd.pw_dir, ERL_NIF_LATIN1),
+				  enif_make_string(env, passwd.pw_shell, ERL_NIF_LATIN1));
+
+	return tag_term(env, "ok", record);
 }
 
 NIF_SIG(getgrnam)
@@ -163,6 +192,7 @@ NIF_SIG(getgrnam)
 	char gr_buf[size];
 
 	struct group group, *gr_p;
+	ERL_NIF_TERM record;
 
 	assert(argc == 1);
 
@@ -174,14 +204,16 @@ NIF_SIG(getgrnam)
 	if (gr_p == NULL)
 		return error2tuple(env, errno ? : ENOENT);
 
-#define GR_TAG(TYPE, NAME) \
-	tag_##TYPE(env, #NAME, group.gr_##NAME)
-	return tag_term(env, "ok",
-			enif_make_list3(env, GR_TAG(string, name),
-					     GR_TAG(string, passwd),
-					     GR_TAG(uint,   gid)
-					     /* GR_TAG(string, mem) */));
-#undef	GR_TAG
+	/*
+	 * see enit_posix.hrl
+	 */
+	record = enif_make_tuple5(env, enif_make_atom(env, "posix_group"),
+				  enif_make_string(env, group.gr_name, ERL_NIF_LATIN1),
+				  enif_make_string(env, group.gr_passwd, ERL_NIF_LATIN1),
+				  enif_make_uint(env, group.gr_gid),
+				  list_of_strings(env, (const char **)group.gr_mem));
+
+	return tag_term(env, "ok", record);
 }
 
 NIF_SIG(setuid)

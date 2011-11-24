@@ -2,6 +2,8 @@
 -export([load_nif/0, load_nif_or_die/0]).
 -export([exec/1, getpwnam/1, getgrnam/1, setuid/1, setgid/1, syslog/3]).
 
+-include("enit_posix.hrl").
+
 load_nif() ->
     PrivDir = case code:priv_dir(enit) of
         {error, _} -> "priv";
@@ -25,11 +27,11 @@ load_nif_or_die() ->
 exec(_Argv) ->
     error(nif_not_loaded).
 
--spec getpwnam(nonempty_string()) -> {ok, [{atom(), term()}]} | {error, file:posix()}.
+-spec getpwnam(nonempty_string()) -> {ok, #posix_passwd{}} | {error, file:posix()}.
 getpwnam(_Name) ->
     error(nif_not_loaded).
 
--spec getgrnam(nonempty_string()) -> {ok, [{atom(), term()}]} | {error, file:posix()}.
+-spec getgrnam(nonempty_string()) -> {ok, #posix_group{}} | {error, file:posix()}.
 getgrnam(_Name) ->
     error(nif_not_loaded).
 
@@ -63,3 +65,4 @@ severity_int(notice)                               -> 5;
 severity_int(informational)                        -> 6;
 severity_int(info)                                 -> 6;
 severity_int(debug)                                -> 7.
+
