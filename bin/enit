@@ -23,7 +23,7 @@ main(_) ->
               "    status  <release> -- get status information on a release~n~n"
               "Commands for debugging:~n"
               "    remsh   <release> -- open a remote shell into a release~n"
-              "    traceip <port>    -- start a TCP trace client (see dbg:trace_lient/3)~n"
+              "    traceip <port>    -- start a TCP trace client (see dbg:trace_client/3)~n"
               "      -h, --host <host> (connect to host instead of localhost)~n"
               "    tracefile <file>  -- read a trace file~n"
               "      -f, --follow (keep reading from file)~n",
