@@ -69,12 +69,13 @@ set_config_user(Config) ->
             case enit_posix:getpwnam(User) of
                 {error, Error} ->
                     {error, {getpwnam, User, Error}};
-                {ok, #posix_passwd{pw_uid = Uid}} ->
+                {ok, #posix_passwd{pw_uid = Uid, pw_dir = Home}} ->
                     case enit_posix:setuid(Uid) of
-                        ok ->
-                            ok;
                         {error, Error} ->
-                            {error, {setuid, User, Error}}
+                            {error, {setuid, User, Error}};
+                        ok ->
+                            os:putenv("HOME", Home),
+                            ok
                     end
             end
     end.
