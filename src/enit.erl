@@ -94,7 +94,7 @@ cli_startfg(Release, Options) ->
                 {ok, #status{alive = true}} ->
                     {error, {already_running, Release}};
                 {ok, #status{alive = false}} ->
-                    enit_vm:start(Info, Options);
+                    enit_vm:startfg(Info, Options);
                 Error ->
                     Error
             end;
