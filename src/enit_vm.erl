@@ -117,7 +117,7 @@ stop(#release{nodename = Nodename, config = Config}) ->
         {badrpc, Error} ->
             throw({error, ?MODULE, {cantstop, Nodename, Error}})
     end,
-    io:format("waiting for node '~s' to go down...~n", [Nodename]),
+    enit_log:info("waiting for node '~s' to go down...~n", [Nodename]),
     StopTimeout = enit_config:get(node, stop_timeout, Config, ?DEFAULT_STOP_TIMEOUT),
     receive
         {nodedown, Nodename} ->
