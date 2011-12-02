@@ -10,7 +10,8 @@
 
 -record(status, {
     alive :: boolean(),
-    running_apps :: [{atom(), string()}],
+    running_apps :: [{atom(), string()}, ...],
+    app_config_defaults :: enit_config:config(),
     running_config :: enit_config:config(),
     connected_nodes :: [node()],
     otp_version :: string(),

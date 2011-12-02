@@ -2,6 +2,9 @@
 -export([read_files/1, merge/2, diff/2, get/3, get/4]).
 -export_type([config/0]).
 
+-include("enit.hrl").
+
+%% config is a key-sorted proplist, the values themselves being key-sorted proplists.
 -type config() :: [{atom(), [{atom(), term()}, ...]}, ...].
 
 get(App, Key, Config) ->
@@ -43,18 +46,26 @@ merge([], R2) ->
 merge(R1, []) ->
     R1.
 
--spec diff(config(), config()) -> {Added::config(), Removed::config(), Changed::config()}.
-diff(Config1, Config2) ->
-    {OnlyIn1, InBoth1} = lists:partition(fun ({K, _}) -> not proplists:is_defined(K, Config2) end, Config1),
-    {OnlyIn2, InBoth2} = lists:partition(fun ({K, _}) -> not proplists:is_defined(K, Config1) end, Config2),
-    {Added, Removed, Changed} = diff_loop(InBoth1, InBoth2, [], [], []),
-    {merge(OnlyIn2, Added), merge(OnlyIn1, Removed), Changed}.
-
-diff_loop([{App, Keys1} | R1], [{App, Keys2} | R2], Added, Removed, Changed) ->
-    {PlAdded, PlRemoved, PlChanged} = pldiff(Keys1, Keys2),
-    diff_loop(R1, R2, [{App, PlAdded} | Added], [{App, PlRemoved} | Removed], [{App, PlChanged} | Changed]);
-diff_loop([], [], Added, Removed, Changed) ->
-    {Added, Removed, Changed}.
+-spec diff(config(), config()) -> [{atom(), {Added::config(), Removed::config(), Changed::config()}}, ...].
+diff([{App1, Env1} | R1], [{App2, Env2} | R2]) when App1 == App2 ->
+    case pldiff(Env1, Env2) of
+        {[], [], []} ->
+            diff(R1, R2);
+        Changes ->
+            [{App1, Changes} | diff(R1, R2)]
+    end;
+diff([{App1, Env1} | R1], [{App2, Env2} | R2]) when App1 < App2 ->
+    %% everything in Env1 was 'added' because App1 is not in Config2
+    [{App1, {Env1, [], []}} | diff(R1, [{App2, Env2} | R2])];
+diff([{App1, Env1} | R1], [{App2, Env2} | R2]) when App1 > App2 ->
+    %% everything in Env2 was 'added' because App2 is not in Config1
+    [{App2, {Env2, [], []}} | diff([{App1, Env1} | R1], R2)];
+diff([], []) ->
+    [];
+diff([], R2) ->
+    lists:map(fun ({App2, Env2}) -> {App2, {Env2, [], []}} end, R2);
+diff(R1, []) ->
+    lists:map(fun ({App1, Env1}) -> {App1, {Env1, [], []}} end, R1).
 
 dedup_keys(Proplist) ->
     dedup_keys1(lists:keysort(1, Proplist)).
@@ -71,6 +82,7 @@ plmerge(List1, List2) ->
     M1 = [{K, V} || {K, V} <- List1, not proplists:is_defined(K, List2)],
     lists:keysort(1, M1 ++ List2).
 
+%% diff _sorted_ proplists
 pldiff(List1, List2) ->
     pldiff(lists:keysort(1, List1), lists:keysort(1, List2), [], [], []).
 

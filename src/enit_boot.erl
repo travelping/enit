@@ -1,5 +1,8 @@
 -module(enit_boot).
--export([start/1]).
+-export([start/1, load_specs/1]).
+-export([env_keeper/1, env_keeper_loop/1, get_boot_app_environments/0]).
+
+-define(ENV_SERVER, enit_env_keeper).
 
 -include("enit.hrl").
 
@@ -11,12 +14,13 @@ start([RelDir, ConfDir, ReleaseName, OptionString]) ->
         {ok, Info} = enit:get_release_info(RelDir, ConfDir, ReleaseName),
         enit_log:info("booting release ~s ~s~n", [Info#release.name, Info#release.version]),
 
-        AllApplications = load_specs(Info#release.applications, []),
+        AppEnvironments = load_specs(Info#release.applications),
+        proc_lib:spawn(?MODULE, env_keeper, [AppEnvironments]),
 
         enit_log:info("applying bootstrap configuration~n", []),
         apply_config(Info#release.config),
 
-        IncludedBy = build_included_by(AllApplications),
+        IncludedBy = build_included_by(AppEnvironments),
         RunningApplications = gb_sets:from_list([App || {App, _, _} <- application:which_applications()]),
         start_apps(Info#release.applications, RunningApplications, IncludedBy),
 
@@ -42,25 +46,31 @@ apply_config(Config) ->
                                         end, AppConfig)
                   end, Config).
 
+-spec load_specs([atom()]) -> [{atom(), [{atom(), term()}]}].
+load_specs(Applications) ->
+    load_specs(Applications, []).
+
 load_specs([App | Rest], Acc) ->
     case application:load(App) of
         ok ->
-            load_specs(Rest, [App] ++ load_dep_specs(App) ++ Acc);
+            {ok, Env} = application:get_key(App, env),
+            load_specs(Rest, [{App, Env}] ++ load_dep_specs(App) ++ Acc);
         {error, {already_loaded, App}} ->
-            load_specs(Rest, [App] ++ load_dep_specs(App) ++ Acc);
+            {ok, Env} = application:get_key(App, env),
+            load_specs(Rest, [{App, Env}] ++ load_dep_specs(App) ++ Acc);
         {error, Error} ->
             throw({error, {load_app, App, Error}})
     end;
 load_specs([], Acc) ->
-    lists:usort(Acc).
+    lists:ukeysort(1, Acc).
 
 load_dep_specs(App) ->
     {ok, Deps} = application:get_key(App, applications),
     {ok, Incl} = application:get_key(App, included_applications),
-    Deps ++ Incl ++ load_specs(Deps, []) ++ load_specs(Incl, []).
+    load_specs(Deps, []) ++ load_specs(Incl, []).
 
-build_included_by(Apps) ->
-    lists:foldl(fun (App, Map) ->
+build_included_by(AppEnvironments) ->
+    lists:foldl(fun ({App, _}, Map) ->
                       case application:get_key(App, included_applications) of
                           undefined ->
                               Map;
@@ -74,7 +84,7 @@ build_included_by(Apps) ->
                                                   end
                                           end, Map, IncludedApps)
                       end
-                end, gb_trees:empty(), Apps).
+                end, gb_trees:empty(), AppEnvironments).
 
 start_apps(AppsToStart, AppsStarted, IncludedBy) ->
     {Actions, _} = lists:foldl(fun (App, {CurActions, CurStarted}) ->
@@ -145,4 +155,27 @@ start_app({application, App, Keys}, IncludedBy, Starting, Actions, Started) ->
                             {[{start, App} | DepActions], gb_sets:add(App, DepStarted)}
                     end
             end
+    end.
+
+%% ----------------------------------------------------------------------------------------------------
+%% -- Environment Keeper Process
+
+%% this process is necessary because the application_controller does not keep a
+%% cached copy of the original application environment, but enit needs it for dynamic configuration.
+env_keeper(Env) ->
+    register(?ENV_SERVER, self()),
+    proc_lib:hibernate(?MODULE, env_keeper_loop, [Env]).
+
+env_keeper_loop(Env) ->
+    receive
+        {get_original_environments, Pid} when is_pid(Pid) ->
+            Pid ! {?ENV_SERVER, Env},
+            proc_lib:hibernate(?MODULE, env_keeper_loop, [Env])
+    end.
+
+get_boot_app_environments() ->
+    ?ENV_SERVER ! {get_original_environments, self()},
+    receive
+        {?ENV_SERVER, Env} ->
+            Env
     end.

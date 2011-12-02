@@ -17,15 +17,16 @@ main(_) ->
     io:format("Usage: ~s <command> <args...>~n"
               "~n"
               "Commands:~n"
-              "    list              -- list installed releases~n"
-              "    startfg <release> -- start a release VM without detaching~n"
-              "    stop    <release> -- stop a release VM~n"
-              "    status  <release> -- get status information on a release~n~n"
+              "    list                   → list installed releases~n"
+              "    startfg <release>      → start a release VM without detaching~n"
+              "    stop <release>         → stop a release VM~n"
+              "    reconfigure <release>  → dynamically apply config changes~n"
+              "    status <release>       → get status information on a release~n~n"
               "Commands for debugging:~n"
-              "    remsh   <release> -- open a remote shell into a release~n"
-              "    traceip <port>    -- start a TCP trace client (see dbg:trace_client/3)~n"
+              "    remsh <release>        → open a remote shell into a release~n"
+              "    traceip <port>         → start a TCP trace client (see dbg:trace_client/3)~n"
               "      -h, --host <host> (connect to host instead of localhost)~n"
-              "    tracefile <file>  -- read a trace file~n"
+              "    tracefile <file>       → read a trace file~n"
               "      -f, --follow (keep reading from file)~n",
               [SN]).
 
@@ -33,6 +34,8 @@ run("startfg", Argv) ->
     cli_command("startfg", Argv, 1, syslog_options());
 run("stop", Argv) ->
     cli_command("stop", Argv, 1, syslog_options());
+run("reconfigure", Argv) ->
+    cli_command("reconfigure", Argv, 1, syslog_options());
 run("remsh", Argv) ->
     cli_command("remsh", Argv, 1, []);
 run("traceip", Argv) ->

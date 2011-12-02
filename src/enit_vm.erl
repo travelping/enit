@@ -33,7 +33,7 @@ startfg(RelName, NodeName, Cookie, Config, Options) ->
 start_remsh(Release) ->
     Args = ["-remsh", atom_to_list(Release#release.nodename),
             "-setcookie", atom_to_list(Release#release.cookie),
-            "-sname", atom_to_list(enit:unique_nodename("enit-remsh")),
+            "-sname", atom_to_list(enit_remote:unique_nodename("enit-remsh")),
             "-hidden", "-smp", "disable"],
     KernelArgs = build_kernel_args(proplists:get_value(kernel, Release#release.config, [])),
     exec_erlang(Args ++ KernelArgs).

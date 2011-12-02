@@ -1,7 +1,8 @@
 -module(enit).
--export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2, cli_traceip/2, cli_tracefile/2]).
--export([get_release_info/1, get_release_info/3, get_status/1, format_error/1]).
--export([unique_nodename/1, parse_cmdline/2, to_str/1]).
+-export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2,
+         cli_traceip/2, cli_tracefile/2, cli_reconfigure/2]).
+-export([get_release_info/1, get_release_info/3, format_error/1]).
+-export([parse_cmdline/2, to_str/1]).
 
 -include("enit.hrl").
 
@@ -16,7 +17,7 @@ cli_list(_Options) ->
             lists:foreach(fun (Release) ->
                                   case get_release_info(Release) of
                                       {ok, Info} ->
-                                          case get_status(Info) of
+                                          case enit_remote:remote_get_status(Info) of
                                               {ok, Status} ->
                                                   show_brief_info(Info, Status);
                                               {error, Error} ->
@@ -42,7 +43,7 @@ show_brief_info(#release{name = Name, version = Version, nodename = Nodename}, S
 cli_status(Release, _Options) ->
     case get_release_info(Release) of
         {ok, Info} ->
-            case get_status(Info) of
+            case enit_remote:remote_get_status(Info) of
                 {ok, Status} ->
                     show_long_info(Info, Status);
                 Error ->
@@ -90,7 +91,7 @@ cli_startfg(Release, Options) ->
     enit_log:init(Options),
     case get_release_info(Release) of
         {ok, Info} ->
-            case get_status(Info) of
+            case enit_remote:remote_get_status(Info) of
                 {ok, #status{alive = true}} ->
                     {error, {already_running, Release}};
                 {ok, #status{alive = false}} ->
@@ -106,7 +107,7 @@ cli_stop(Release, Options) ->
     enit_log:init(Options),
     case get_release_info(Release) of
         {ok, Info} ->
-            case get_status(Info) of
+            case enit_remote:remote_get_status(Info) of
                 {ok, #status{alive = true}} ->
                     enit_vm:stop(Info);
                 {ok, #status{alive = false}} ->
@@ -114,6 +115,15 @@ cli_stop(Release, Options) ->
                 Error ->
                     Error
             end;
+        Error ->
+            Error
+    end.
+
+cli_reconfigure(Release, Options) ->
+    enit_log:init(Options),
+    case get_release_info(Release) of
+        {ok, Info} ->
+            enit_remote:remote_config_change(Info);
         Error ->
             Error
     end.
@@ -218,7 +228,7 @@ apply_config(Config, Info) ->
     NodeProps = proplists:get_value(node, Config, []),
     case proplists:is_defined(cookie, NodeProps) of
         true ->
-            Nodename = proplists:get_value(nodename, NodeProps, gen_nodename(Info#release.name)),
+            Nodename = proplists:get_value(nodename, NodeProps, enit_remote:gen_nodename(Info#release.name)),
             {ok, Info#release{cookie = to_atom(proplists:get_value(cookie, NodeProps)),
                               nodename = to_atom(Nodename),
                               config = Config}};
@@ -234,100 +244,6 @@ get_config(RelDir, ConfigDir, Release) ->
     BaseConfig = filename:join([RelDir, Release, "defaults.config"]),
     UserConfig = filename:join([ConfigDir, Release, "user.config"]),
     enit_config:read_files([BaseConfig, UserConfig]).
-
-unique_nodename(Prefix) ->
-    unique_nodename(Prefix, 5).
-
-unique_nodename(Prefix, 0) ->
-    gen_nodename(Prefix ++ integer_to_list(erlang:phash2(make_ref(), 20)));
-unique_nodename(Prefix, Retries) ->
-    Name = Prefix ++ integer_to_list(erlang:phash2(make_ref(), 20)),
-    case erl_epmd:names() of
-        {ok, EpmdNames} ->
-            case lists:keymember(Name, 1, EpmdNames) of
-                true ->
-                    unique_nodename(Prefix, Retries -1);
-                false ->
-                    gen_nodename(Name)
-            end;
-        _ ->
-            gen_nodename(Name)
-    end.
-
-gen_nodename(Relname) ->
-    {ok, Hostname} = inet:gethostname(),
-    list_to_atom(Relname ++ "@" ++ Hostname).
-
-%% ----------------------------------------------------------------------------------------------------
-%% -- Release Status
--spec get_status(#release{}) -> #status{}.
-get_status(#release{nodename = Node, cookie = Cookie}) ->
-    maybe_start_network(),
-    erlang:set_cookie(Node, Cookie),
-    case is_node_online(Node, 3) of
-        true ->
-            WhichApplications = rpc(Node, application, which_applications, []),
-            Apps = [{Name, Version} || {Name, _Desc, Version} <- WhichApplications],
-            {UpTimeMillis, _} = rpc(Node, erlang, statistics, [wall_clock]),
-            RemConfig = get_remote_config(Node, Apps, []),
-            {ok, #status{alive = true,
-                         otp_version = rpc(Node, erlang, system_info, [otp_release]),
-                         uptime_seconds = UpTimeMillis div 1000,
-                         memory_info = rpc(Node, erlang, memory, []),
-                         os_pid = rpc(Node, os, getpid, []),
-                         running_apps = Apps,
-                         running_config = RemConfig,
-                         connected_nodes = rpc(Node, erlang, nodes, [])}};
-        false ->
-            {ok, #status{alive = false, running_apps = [], running_config = [], connected_nodes = []}}
-    end.
-
-rpc(Node, M, F, A) ->
-    case rpc:call(Node, M, F, A) of
-        {badrpc, Error} ->
-            throw({error, {badrpc, Node, Error}});
-        Res ->
-            Res
-    end.
-
-maybe_start_network() ->
-    case is_alive() of
-        true ->
-            ok;
-        false ->
-            OwnNodename = unique_nodename("enit"),
-            net_kernel:monitor_nodes(true),
-            net_kernel:start([OwnNodename, shortnames]),
-            receive
-                {nodeup, OwnNodename} ->
-                    net_kernel:monitor_nodes(false)
-            after
-                2000 ->
-                    net_kernel:monitor_nodes(false),
-                    throw({error, net_timeout})
-            end
-    end.
-
-is_node_online(_, 0) ->
-    false;
-is_node_online(Node, N) ->
-    case net_adm:ping(Node) of
-        pang ->
-            timer:sleep(100),
-            is_node_online(Node, N - 1);
-        pong ->
-            true
-    end.
-
-get_remote_config(Node, [{App, _} | Rest], Acc) ->
-    case rpc:call(Node, application, get_all_env, [App]) of
-        {badrpc, Error} ->
-            {error, {badrpc, Node, Error}};
-        Env ->
-            get_remote_config(Node, Rest, [{App, Env} | Acc])
-    end;
-get_remote_config(_Node, [], Acc) ->
-    Acc.
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- Misc
