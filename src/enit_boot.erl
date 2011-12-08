@@ -21,23 +21,25 @@ start([RelDir, ConfDir, ReleaseName, OptionString]) ->
         apply_config(Info#release.config),
 
         IncludedBy = build_included_by(AppEnvironments),
-        RunningApplications = gb_sets:from_list([App || {App, _, _} <- application:which_applications()]),
-        start_apps(Info#release.applications, RunningApplications, IncludedBy),
+        start_apps(Info#release.applications, gb_sets:empty(), IncludedBy),
 
-        enit_log:info("release ~s ~s started~n", [Info#release.name, Info#release.version])
+        enit_log:info("started release ~s ~s~n", [Info#release.name, Info#release.version])
     catch
         Error ->
             enit_log:error("Error: ~s~n", [format_error(Error)]),
             halt(1)
     end.
-
 parse_term(String) ->
     {ok, Toks, _} = erl_scan:string(String ++ "."),
     {ok, Term} = erl_parse:parse_term(Toks),
     Term.
 
+format_error({start_failed, App, Error}) ->
+    io_lib:format("could not start application ~p: ~p", [App, Error]);
+format_error({load_failed, App, Module, Error}) ->
+    io_lib:format("could load module ~p (in ~p): ~p", [Module, App, Error]);
 format_error(Error) ->
-    enit:format_error(Error).
+    io_lib:format("unknown error: ~p", [Error]).
 
 apply_config(Config) ->
     lists:foreach(fun ({App, AppConfig}) ->
@@ -93,11 +95,20 @@ start_apps(AppsToStart, AppsStarted, IncludedBy) ->
                                        start_app(Spec, IncludedBy, gb_sets:empty(), CurActions, CurStarted)
                                end, {[], AppsStarted}, AppsToStart),
     lists:foreach(fun ({start, App}) ->
-                          enit_log:info("starting ~s~n", [App]),
                           case application:start(App) of
-                              ok -> ok;
+                              ok -> enit_log:info("started ~s~n", [App]);
                               {error, {already_started, App}} -> ok;
                               {error, StartReason} -> throw({start_failed, App, StartReason})
+                          end;
+                      ({load_module, App, Mod}) ->
+                          case code:is_loaded(Mod) of
+                              {file, _} ->
+                                  ok;
+                              false ->
+                                  case code:ensure_loaded(Mod) of
+                                      {module, _} -> ok;
+                                      {error, LoadError} -> throw({load_failed, App, Mod, LoadError})
+                                  end
                           end
                   end, lists:reverse(Actions)).
 
@@ -152,7 +163,9 @@ start_app({application, App, Keys}, IncludedBy, Starting, Actions, Started) ->
                             {ContainingActions, ContainingStarted} = start_app(ContainingSpec, IncludedBy, NewStarting, DepActions, DepStarted),
                             {ContainingActions, gb_sets:add(App, ContainingStarted)};
                         none ->
-                            {[{start, App} | DepActions], gb_sets:add(App, DepStarted)}
+                            {ok, Modules} = application:get_key(App, modules),
+                            LoadActions = [{load_module, App, Mod} || Mod <- Modules],
+                            {[{start, App} | LoadActions] ++ DepActions, gb_sets:add(App, DepStarted)}
                     end
             end
     end.
