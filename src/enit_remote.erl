@@ -149,7 +149,7 @@ get_status_proplist() ->
      {app_config_defaults, app_config_defaults()},
      {os_pid, os:getpid()},
      {memory_info, erlang:memory()},
-     {otp_release, erlang:system_info(otp_release)},
+     {otp_version, erlang:system_info(otp_release)},
      {connected_nodes, nodes()}].
 
 app_config_defaults() ->
