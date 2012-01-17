@@ -21,7 +21,9 @@ start([RelDir, ConfDir, ReleaseName, OptionString]) ->
         apply_config(Info#release.config),
 
         IncludedBy = build_included_by(AppEnvironments),
-        start_apps(Info#release.applications, gb_sets:empty(), IncludedBy),
+        StartRetries = proplists:get_value(start_retries, Options, 1),
+        StartDelay   = proplists:get_value(start_delay, Options, 100),
+        try_app_boot(Info, gb_sets:empty(), IncludedBy, StartRetries, StartDelay),
 
         enit_log:info("started release ~s ~s~n", [Info#release.name, Info#release.version])
     catch
@@ -29,12 +31,38 @@ start([RelDir, ConfDir, ReleaseName, OptionString]) ->
             enit_log:error("Error: ~s~n", [format_error(Error)]),
             halt(1)
     end.
+
+try_app_boot(Info, Started, IncludedBy, Retries, Delay) ->
+    try
+        start_apps(Info#release.applications, Started, IncludedBy)
+    catch
+        Error = {start_failed, App, StartError, NewStarted} ->
+            if
+                (Retries == unlimited) orelse (Retries >= 1) ->
+                    error_logger:error_report([{enit_boot, {start_error, App}}, {retries_left, Retries}, {delay, Delay}, {error, StartError}]),
+                    case Retries of
+                        unlimited ->
+                            enit_log:error("Error (will retry forever in ~ps): ~s~n", [Delay, format_error(Error)]),
+                            NewRetries = Retries;
+                        _N ->
+                            enit_log:error("Error (will retry another ~p times in ~ps): ~s~n", [Retries, Delay, format_error(Error)]),
+                            NewRetries = Retries - 1
+                    end,
+                    timer:sleep(timer:seconds(Delay)),
+                    try_app_boot(Info, NewStarted, IncludedBy, NewRetries, Delay);
+                true ->
+                    error_logger:error_report([{enit_boot, start_error}, {giving_up, sorry}]),
+                    enit_log:error("Giving up on ~s. Sorry.~n", [Info#release.name]),
+                    erlang:halt(1)
+            end
+    end.
+
 parse_term(String) ->
     {ok, Toks, _} = erl_scan:string(String ++ "."),
     {ok, Term} = erl_parse:parse_term(Toks),
     Term.
 
-format_error({start_failed, App, Error}) ->
+format_error({start_failed, App, Error, _Started}) ->
     io_lib:format("could not start application ~p: ~p", [App, Error]);
 format_error({load_failed, App, Module, Error}) ->
     io_lib:format("could load module ~p (in ~p): ~p", [Module, App, Error]);
@@ -98,7 +126,7 @@ start_apps(AppsToStart, AppsStarted, IncludedBy) ->
                           case application:start(App) of
                               ok -> enit_log:info("started ~s~n", [App]);
                               {error, {already_started, App}} -> ok;
-                              {error, StartReason} -> throw({start_failed, App, StartReason})
+                              {error, StartReason} -> throw({start_failed, App, StartReason, AppsStarted})
                           end;
                       ({load_module, App, Mod}) ->
                           case code:is_loaded(Mod) of

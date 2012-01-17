@@ -12,9 +12,10 @@ erl_binary() ->
 startfg(Rel = #release{}, Options) ->
     startfg(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config, Options).
 
-startfg(RelName, NodeName, Cookie, Config, Options) ->
+startfg(RelName, NodeName, Cookie, Config, OptionsIn) ->
     {ok, RelPath} = application:get_env(enit, release_dir),
     {ok, ConfPath} = application:get_env(enit, config_dir),
+    Options = set_retry_options(OptionsIn, set_retry_options(proplists:get_value(node, Config, []), OptionsIn)),
     OptionString = lists:flatten(io_lib:format("~p", [Options])),
 
     DefaultArgs = ["-noshell",
@@ -29,6 +30,22 @@ startfg(RelName, NodeName, Cookie, Config, Options) ->
         {error, Error} ->
             {error, Error}
     end.
+
+set_retry_options([{start_retries, "unlimited"} | Rest], Options) ->
+    set_retry_options(Rest, lists:keystore(start_retries, 1, Options, {start_retries, unlimited}));
+set_retry_options([{start_retries, unlimited} | Rest], Options) ->
+    set_retry_options(Rest, lists:keystore(start_retries, 1, Options, {start_retries, unlimited}));
+set_retry_options([{start_retries, Retries} | Rest], Options) ->
+    set_retry_options(Rest, lists:keystore(start_retries, 1, Options, {start_retries, to_integer(Retries)}));
+set_retry_options([{start_delay, Delay} | Rest], Options) ->
+    set_retry_options(Rest, lists:keystore(start_delay, 1, Options, {start_delay, to_integer(Delay)}));
+set_retry_options([_ | Rest], Options) ->
+    set_retry_options(Rest, Options);
+set_retry_options([], Options) ->
+    Options.
+
+to_integer(Int) when is_integer(Int) -> Int;
+to_integer(String) when is_list(String) -> list_to_integer(String).
 
 start_remsh(Release) ->
     Args = ["-remsh", atom_to_list(Release#release.nodename),

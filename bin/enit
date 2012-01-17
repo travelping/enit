@@ -17,8 +17,10 @@ main(_) ->
     io:format("Usage: ~s <command> <args...>~n"
               "~n"
               "Commands:~n"
-              "    list                   → list installed releases~n"
               "    startfg <release>      → start a release VM without detaching~n"
+              "      --start-retries <n> (try starting applications <n> times, <n> can also be 'infinity')~n"
+              "      --start-delay <m> (wait <m> seconds between retries)~n"
+              "    list                   → list installed releases~n"
               "    stop <release>         → stop a release VM~n"
               "    reconfigure <release>  → dynamically apply config changes~n"
               "    status <release>       → get status information on a release~n~n"
@@ -31,7 +33,7 @@ main(_) ->
               [SN]).
 
 run("startfg", Argv) ->
-    cli_command("startfg", Argv, 1, syslog_options());
+    cli_command("startfg", Argv, 1, syslog_options() ++ start_options());
 run("stop", Argv) ->
     cli_command("stop", Argv, 1, syslog_options());
 run("reconfigure", Argv) ->
@@ -52,6 +54,10 @@ run(_, _) ->
 
 syslog_options() ->
     [{flag, syslog, ["-s", "--syslog"]}].
+
+start_options() ->
+    [{option, start_retries, 1, ["--start-retries"]},
+     {option, start_delay, 1, ["--start-delay"]}].
 
 cli_command(Command, Argv, ArgCount, OptionSpec) ->
     case enit:parse_cmdline(Argv, OptionSpec) of
