@@ -6,10 +6,20 @@
 
 -include("enit.hrl").
 
-start([RelDir, ConfDir, ReleaseName, OptionString]) ->
+start([RelDir, ConfDir, ReleaseName]) ->
     try
-        Options = parse_term(OptionString),
-        enit_log:init(Options),
+        case application:load(enit) of
+            ok ->
+                ok;
+            {error, {already_loaded, enit}} ->
+                ok;
+            {error, LoadError} ->
+                throw({load_app, enit, LoadError})
+        end,
+
+        enit_log:init([{syslog, getenv(syslog, false)}]),
+        StartRetries = getenv(start_retries, unlimited),
+        StartDelay = getenv(start_delay, 15),
 
         {ok, Info} = enit:get_release_info(RelDir, ConfDir, ReleaseName),
         enit_log:info("booting release ~s ~s~n", [Info#release.name, Info#release.version]),
@@ -21,8 +31,6 @@ start([RelDir, ConfDir, ReleaseName, OptionString]) ->
         apply_config(Info#release.config),
 
         IncludedBy = build_included_by(AppEnvironments),
-        StartRetries = proplists:get_value(start_retries, Options, 1),
-        StartDelay   = proplists:get_value(start_delay, Options, 100),
         try_app_boot(Info, gb_sets:empty(), IncludedBy, StartRetries, StartDelay),
 
         enit_log:info("started release ~s ~s~n", [Info#release.name, Info#release.version])
@@ -30,6 +38,12 @@ start([RelDir, ConfDir, ReleaseName, OptionString]) ->
         Error ->
             enit_log:error("Error: ~s~n", [format_error(Error)]),
             halt(1)
+    end.
+
+getenv(Key, Default) ->
+    case application:get_env(enit, Key) of
+        {ok, Val} -> Val;
+        undefined -> Default
     end.
 
 try_app_boot(Info, Started, IncludedBy, Retries, Delay) ->
@@ -57,15 +71,12 @@ try_app_boot(Info, Started, IncludedBy, Retries, Delay) ->
             end
     end.
 
-parse_term(String) ->
-    {ok, Toks, _} = erl_scan:string(String ++ "."),
-    {ok, Term} = erl_parse:parse_term(Toks),
-    Term.
-
 format_error({start_failed, App, Error, _Started}) ->
     io_lib:format("could not start application ~p: ~p", [App, Error]);
 format_error({load_failed, App, Module, Error}) ->
     io_lib:format("could load module ~p (in ~p): ~p", [Module, App, Error]);
+format_error({load_app, App, Error}) ->
+    io_lib:format("failed to load appfile for ~p: ~p", [App, Error]);
 format_error(Error) ->
     io_lib:format("unknown error: ~p", [Error]).
 
@@ -89,7 +100,7 @@ load_specs([App | Rest], Acc) ->
             {ok, Env} = application:get_key(App, env),
             load_specs(Rest, [{App, Env}] ++ load_dep_specs(App) ++ Acc);
         {error, Error} ->
-            throw({error, {load_app, App, Error}})
+            throw({load_app, App, Error})
     end;
 load_specs([], Acc) ->
     lists:ukeysort(1, Acc).

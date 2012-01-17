@@ -15,18 +15,20 @@ startfg(Rel = #release{}, Options) ->
 startfg(RelName, NodeName, Cookie, Config, OptionsIn) ->
     {ok, RelPath} = application:get_env(enit, release_dir),
     {ok, ConfPath} = application:get_env(enit, config_dir),
-    Options = set_retry_options(OptionsIn, set_retry_options(proplists:get_value(node, Config, []), OptionsIn)),
-    OptionString = lists:flatten(io_lib:format("~p", [Options])),
 
-    DefaultArgs = ["-noshell",
-                   "-sname", atom_to_list(NodeName),
+    DefaultArgs = ["-sname", atom_to_list(NodeName),
+                   "-noshell",
                    "-setcookie", atom_to_list(Cookie),
-                   "-run", "enit_boot", "start", RelPath, ConfPath, RelName, OptionString],
+                   "-run", "enit_boot", "start", RelPath, ConfPath, RelName],
     ConfigArgs = build_erl_args(Config),
+    Options = set_retry_options(OptionsIn, set_retry_options(proplists:get_value(node, Config, []), OptionsIn)),
+    EnitParams = lists:flatmap(fun ({Key, Value}) ->
+                                       ["-enit", atom_to_list(Key), lists:flatten(io_lib:format("~p", [Value]))]
+                               end, Options),
 
     case set_config_user_and_group(Config) of
         ok ->
-            exec_erlang(ConfigArgs ++ DefaultArgs);
+            exec_erlang(DefaultArgs ++ ConfigArgs ++ EnitParams);
         {error, Error} ->
             {error, Error}
     end.
