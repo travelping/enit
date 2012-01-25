@@ -231,6 +231,11 @@ NIF_SIG(setuid)
 	return enif_make_atom(env, "ok");
 }
 
+NIF_SIG(getuid)
+{
+	return tag_term(env, "ok", enif_make_uint(env, getuid()));
+}
+
 NIF_SIG(setgid)
 {
 	unsigned int gid;
@@ -244,6 +249,11 @@ NIF_SIG(setgid)
 		return error2tuple(env, errno);
 
 	return enif_make_atom(env, "ok");
+}
+
+NIF_SIG(getgid)
+{
+	return tag_term(env, "ok", enif_make_uint(env, getgid()));
 }
 
 NIF_SIG(syslog)
@@ -272,7 +282,9 @@ static ErlNifFunc nif_funcs[] = {
 	NIF_MAP(getpwnam,	1),
 	NIF_MAP(getgrnam,	1),
 	NIF_MAP(setuid,		1),
+	NIF_MAP(getuid,		0),
 	NIF_MAP(setgid,		1),
+	NIF_MAP(getgid,		0),
 	NIF_MAP(syslog,		2)
 #undef	NIF_MAP
 };

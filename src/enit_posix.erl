@@ -1,6 +1,6 @@
 -module(enit_posix).
 -export([load_nif/0, load_nif_or_die/0]).
--export([exec/1, getpwnam/1, getgrnam/1, setuid/1, setgid/1, syslog/3]).
+-export([exec/1, getpwnam/1, getgrnam/1, setuid/1, getuid/0, setgid/1, getgid/0, syslog/3]).
 
 -include("enit_posix.hrl").
 
@@ -39,8 +39,16 @@ getgrnam(_Name) ->
 setuid(_User) ->
     error(nif_not_loaded).
 
+-spec getuid() -> {ok, non_neg_integer()}.
+getuid() ->
+    error(nif_not_loaded).
+
 -spec setgid(non_neg_integer()) -> ok | {error, file:posix()}.
 setgid(_Group) ->
+    error(nif_not_loaded).
+
+-spec getgid() -> {ok, non_neg_integer()}.
+getgid() ->
     error(nif_not_loaded).
 
 -spec syslog(atom() | integer(), io:format(), [term()]) -> ok.
