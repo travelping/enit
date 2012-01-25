@@ -13,6 +13,12 @@ startfg(Rel = #release{}, Options) ->
     startfg(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config, Options).
 
 startfg(RelName, NodeName, Cookie, Config, OptionsIn) ->
+    case enit_posix:getuid() of
+        {ok, 0} -> startfg2(RelName, NodeName, Cookie, Config, OptionsIn);
+        {ok, _} -> {error, notroot}
+    end.
+
+startfg2(RelName, NodeName, Cookie, Config, OptionsIn) ->
     {ok, RelPath} = application:get_env(enit, release_dir),
     {ok, ConfPath} = application:get_env(enit, config_dir),
 
