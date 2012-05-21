@@ -23,15 +23,17 @@ applications nor the Erlang VM. Instead, you're responsible to
 install your applications to the target using any mechanism of
 your choice (e.g. Debian packages). You define releases by simply 
 dropping a release specification into the definition directory,
-`/var/lib/enit`. You can then boot your release using `enit startfg`.
+`/var/lib/enit`. You start and stop your release using the `enit` 
+command line tool.
+
 This model allows you to upgrade applications separately.
 If you run multiple releases on a single host, they can share
 the emulator installation and all applications.
 
 Enit also handles bootstrap configuration through the OTP application
-environment. If your application supports the config_change/3 application
-callback, you'll be able to react to configuration changes while the  
-application is running.
+environment. If your application supports the
+[config_change/3 application callback](http://www.erlang.org/doc/apps/kernel/application.html#Module:config_change-3),
+you'll be able to react to configuration changes while the application is running.
 
 Current Limitations
 -------------------
