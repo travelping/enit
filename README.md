@@ -71,28 +71,28 @@ and some configuration defaults in `/var/lib/enit/relex/defaults.config`:
 		{run_as_group, "relex"},
 		{smp, enabled}
 	]}.
-
+	
 	{kernel, [
 		{start_timer, true},
 		{start_disk_log, true}
 	]}.
-
+	
 	{sasl, [
 		{sasl_error_logger, false},
 		{utc_log, true}
 	]}.
 
-We'll also set some host-specific configuration
+We also set some host-specific configuration
 parameters in the *user configuration file*, `/etc/enit/relex/user.config`:
 
 	{node, [
 		{cookie, "monster"}
 	]}.
-
+	
 	{kernel, [
 		{inet_dist_use_interface, {98,77,23,2}}
 	]}.
-
+	
 	{relex_application, [
 		{frozzle_timeout, 6000},
 		{kabozzle_domain, "relex.com"}
@@ -105,10 +105,10 @@ by Ubuntu. Put this into `/etc/init/relex.conf`:
 
 	start on started 
 	stop on stopping bigcouch
-
+	
 	env HOME=/root
 	exec /usr/bin/enit startfg relex --syslog
-
+	
 	respawn
 	respawn limit 5 10
 
@@ -120,9 +120,9 @@ Let's boot the release using upstart:
 	Version: 1.0
 	Node:    relex@cluster02
 	Cookie:  monster 
-
+	
 	This node is currently online.
-
+	
 	OTP: R14B03
 	Pid: 24554
 	Uptime: 22sec 
@@ -154,15 +154,15 @@ Dynamic Configuration Example
 Suppose we want to change the value of `kabozzle_domain` in
 `relex_application` to some other value.
 
-Edit `/etc/enit/relex/user.config`:  
+Edit `/etc/enit/relex/user.config`:
 
 	...
-
+	
 	{relex_application, [
 		{frozzle_timeout, 6000},
 		{kabozzle_domain, "relex.changed.com"}
 	]}.
-
+	
 	...
 
 We now notify the VM that configuration has changed:
@@ -170,7 +170,7 @@ We now notify the VM that configuration has changed:
 	$ enit reconfigure relex
 	reconfigure: config changes applied
 
-Inside the VM, enit will calculate the differences between the running
+Inside the VM, enit calculates the differences between the running
 configuration and the config files. It then sets all the application
-parameters and calls the `config_change` functions in all applications 
-whose configuration has changed (if they define it).
+parameters and calls the `config_change` function in all applications 
+whose configuration has changed (if they define the callback).
