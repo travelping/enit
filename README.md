@@ -1,6 +1,13 @@
 Enit provides a dynamic alternative to OTP releases.
 It is meant to be the successor to [erlrc](http://code.google.com/p/erlrc/).
 
+Enit is provided under the MIT License.
+In order to build enit using [tetrapak](https://github.com/fjl/tetrapak), simply execute
+
+	tetrapak build
+
+in your working copy.
+
 Dynamic, you say?
 -----------------
 
