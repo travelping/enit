@@ -57,7 +57,7 @@ show_brief_info(#release{name = Name, version = Version, nodename = Nodename} = 
                       case check_all_running(Release, Status) of
                           true ->
                               "running";
-                          false ->
+                          {false, _} ->
                               "starting"
                       end;
                   false ->
@@ -84,12 +84,21 @@ show_long_info(Info, Status) ->
                 {"Node:",    Info#release.nodename},
                 {"Cookie:",  Info#release.cookie}]),
     io:nl(),
-    show_status(Status).
+    show_status(Info, Status).
 
-show_status(#status{alive = false}) ->
+show_status(_Info, #status{alive = false}) ->
     io:format("This node is currently offline.~n");
-show_status(Status = #status{alive = true}) ->
-    io:format("This node is currently online.~n~n"),
+show_status(Info, Status = #status{alive = true}) ->
+    io:format("This node is currently online.~n"),
+    Check = check_all_running(Info, Status),
+    case Check of
+        true ->
+            io:format("Release was started.~n~n");
+        {false, Apps} ->
+            io:format("Release wasn't started.~n"),
+            io:format(user, "Applications are starting: ~p~n", [Apps]),
+            io:nl()
+    end,
     show_table([{"OTP:", Status#status.otp_version},
                 {"Pid:", Status#status.os_pid}]),
     show_table([{"Uptime:", format_duration(Status#status.uptime_seconds)}]),
@@ -280,7 +289,7 @@ check_all_running(#release{applications = Applications}, #status{running_apps = 
         [] ->
             true;
         _ ->
-            false
+            {false, NotRunning}
     end.
 
 format_error(Error) ->
