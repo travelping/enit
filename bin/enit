@@ -30,9 +30,9 @@ main(_) ->
               "      -h, --host <host> (connect to host instead of localhost)~n"
               "    tracefile <file>       → read a trace file~n"
               "      -f, --follow (keep reading from file)~n"
-              "For all commands with <release> there is flag:"
-              "      -m, --match          → if no release with this name, find if exists"
-              "                             first release, that matched",
+              "For all commands with <release> there is flag:~n"
+              "      -m, --match          → if no release with this name, find if exists~n"
+              "                             first release, that matched~n",
               [SN]).
 
 run("startfg", Argv) ->
