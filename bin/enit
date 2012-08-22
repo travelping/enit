@@ -29,23 +29,26 @@ main(_) ->
               "    traceip <port>         → start a TCP trace client (see dbg:trace_client/3)~n"
               "      -h, --host <host> (connect to host instead of localhost)~n"
               "    tracefile <file>       → read a trace file~n"
-              "      -f, --follow (keep reading from file)~n",
+              "      -f, --follow (keep reading from file)~n"
+              "For all commands with <release> there is flag:"
+              "      -m, --match          → if no release with this name, find if exists"
+              "                             first release, that matched",
               [SN]).
 
 run("startfg", Argv) ->
-    cli_command("startfg", Argv, 1, syslog_options() ++ start_options());
+    cli_command("startfg", Argv, 1, match_options() ++ syslog_options() ++ start_options());
 run("stop", Argv) ->
-    cli_command("stop", Argv, 1, syslog_options());
+    cli_command("stop", Argv, 1, match_options() ++ syslog_options());
 run("reconfigure", Argv) ->
-    cli_command("reconfigure", Argv, 1, syslog_options());
+    cli_command("reconfigure", Argv, 1, match_options() ++ syslog_options());
 run("remsh", Argv) ->
-    cli_command("remsh", Argv, 1, []);
+    cli_command("remsh", Argv, 1, match_options());
 run("traceip", Argv) ->
     cli_command("traceip", Argv, 1, [{option, host, 1, ["-h", "--host"]}]);
 run("tracefile", Argv) ->
     cli_command("tracefile", Argv, 1, [{option, follow, 1, ["-f", "--follow"]}]);
 run("status", Argv) ->
-    cli_command("status", Argv, 1, []);
+    cli_command("status", Argv, 1, match_options());
 run("list", Argv) ->
     cli_command("list", Argv, 0, []);
 run(_, _) ->
@@ -58,6 +61,9 @@ syslog_options() ->
 start_options() ->
     [{option, start_retries, 1, ["--start-retries"]},
      {option, start_delay, 1, ["--start-delay"]}].
+
+match_options() ->
+    [{flag, match, ["-m", "--match"]}].
 
 cli_command(Command, Argv, ArgCount, OptionSpec) ->
     case enit:parse_cmdline(Argv, OptionSpec) of

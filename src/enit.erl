@@ -299,7 +299,7 @@ get_config(RelDir, ConfigDir, Release) ->
 check_match(Release, Options, Fun) ->
     case Fun(Release) of
         {error, {faccess, _, enoent}} = Error ->
-            case lists:member("-m", Options) of
+            case lists:member({match, true}, Options) of
                 true ->
                     case match_release_name(Release) of
                         {match, FoundRelease} ->
