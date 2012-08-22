@@ -51,13 +51,18 @@ cli_list(_Options) ->
             {error, {list_dir, Dir, Error}}
     end.
 
-show_brief_info(#release{name = Name, version = Version, nodename = Nodename}, Status) ->
-    case Status#status.alive of
-        true ->
-            RunDesc = "running";
-        false ->
-            RunDesc = "not running"
-    end,
+show_brief_info(#release{name = Name, version = Version, nodename = Nodename} = Release, Status) ->
+    RunDesc = case Status#status.alive of
+                  true ->
+                      case check_all_running(Release, Status) of
+                          true ->
+                              "running";
+                          false ->
+                              "starting"
+                      end;
+                  false ->
+                      "not running"
+              end,
     io:format("* ~s ~s [~s] (~s)~n", [Name, Version, Nodename, RunDesc]).
 
 cli_status(Release, _Options) ->
@@ -267,6 +272,17 @@ get_config(RelDir, ConfigDir, Release) ->
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- Misc
+check_all_running(#release{applications = Applications}, #status{running_apps = RunningApplications}) ->
+    NotRunning = lists:foldl(fun({App, _}, ConfiguratedApps) ->
+                                     lists:delete(App, ConfiguratedApps)
+                             end, Applications, RunningApplications),
+    case NotRunning of
+        [] ->
+            true;
+        _ ->
+            false
+    end.
+
 format_error(Error) ->
     lists:flatten(io_lib:format("~p", [Error])).
 
