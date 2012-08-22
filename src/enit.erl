@@ -65,7 +65,10 @@ show_brief_info(#release{name = Name, version = Version, nodename = Nodename} = 
               end,
     io:format("* ~s ~s [~s] (~s)~n", [Name, Version, Nodename, RunDesc]).
 
-cli_status(Release, _Options) ->
+cli_status(Release, Options) ->
+    check_match(Release, Options, fun status_fun/1).
+
+status_fun(Release) ->
     case get_release_info(Release) of
         {ok, Info} ->
             case enit_remote:remote_get_status(Info) of
@@ -93,12 +96,11 @@ show_status(Info, Status = #status{alive = true}) ->
     Check = check_all_running(Info, Status),
     case Check of
         true ->
-            io:format("Release was started.~n~n");
+            ok;
         {false, Apps} ->
-            io:format("Release wasn't started.~n"),
-            io:format(user, "Applications are starting: ~p~n", [Apps]),
-            io:nl()
+            io:format(user, "Applications are starting: ~p~n", [Apps])
     end,
+    io:nl(),
     show_table([{"OTP:", Status#status.otp_version},
                 {"Pid:", Status#status.os_pid}]),
     show_table([{"Uptime:", format_duration(Status#status.uptime_seconds)}]),
@@ -123,6 +125,9 @@ mem_item(Item) ->
 
 cli_startfg(Release, Options) ->
     enit_log:init(Options),
+    check_match(Release, Options, fun(ReleaseName) -> startfg_fun(ReleaseName, Options) end).
+
+startfg_fun(Release, Options) ->
     case get_release_info(Release) of
         {ok, Info} ->
             case enit_remote:remote_get_status(Info) of
@@ -139,6 +144,9 @@ cli_startfg(Release, Options) ->
 
 cli_stop(Release, Options) ->
     enit_log:init(Options),
+    check_match(Release, Options, fun stop_fun/1).
+
+stop_fun(Release) ->
     case get_release_info(Release) of
         {ok, Info} ->
             case enit_remote:remote_get_status(Info) of
@@ -155,6 +163,9 @@ cli_stop(Release, Options) ->
 
 cli_reconfigure(Release, Options) ->
     enit_log:init(Options),
+    check_match(Release, Options, fun reconfigure_fun/1).
+
+reconfigure_fun(Release) ->
     case get_release_info(Release) of
         {ok, Info} ->
             enit_remote:remote_config_change(Info);
@@ -162,7 +173,10 @@ cli_reconfigure(Release, Options) ->
             Error
     end.
 
-cli_remsh(Release, _Options) ->
+cli_remsh(Release, Options) ->
+    check_match(Release, Options, fun remsh_fun/1).
+
+remsh_fun(Release) ->
     case get_release_info(Release) of
         {ok, Info} ->
             enit_vm:start_remsh(Info);
@@ -281,6 +295,45 @@ get_config(RelDir, ConfigDir, Release) ->
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- Misc
+
+check_match(Release, Options, Fun) ->
+    case Fun(Release) of
+        {error, {faccess, _, enoent}} = Error ->
+            case lists:member("-m", Options) of
+                true ->
+                    case match_release_name(Release) of
+                        {match, FoundRelease} ->
+                            Fun(FoundRelease);
+                        nomatch ->
+                            Error
+                    end;
+                false ->
+                    Error
+            end;
+        OtherResult ->
+            OtherResult
+    end.
+
+match_release_name(String) ->
+    {ok, Dir} = application:get_env(enit, release_dir),
+    case file:list_dir(Dir) of
+        {ok, []} ->
+            nomatch;
+        {ok, Releases} ->
+            match(String, Releases);
+        _ ->
+            nomatch
+    end.
+
+match(_String, []) -> nomatch;
+match(String, [Name | Names]) ->
+    case string:str(Name, String) of
+        0 ->
+            match(String, Names);
+        _ ->
+            {match, Name}
+    end.
+
 check_all_running(#release{applications = Applications}, #status{running_apps = RunningApplications}) ->
     NotRunning = lists:foldl(fun({App, _}, ConfiguratedApps) ->
                                      lists:delete(App, ConfiguratedApps)
