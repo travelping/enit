@@ -256,6 +256,7 @@ configurate(Release, Options) ->
     configurate(Release, <<"all">>, Options).
 
 configurate(Release, App, Options) ->
+    application:load(enit),
     case check_match(Release, Options, fun get_release_info/1) of
         {ok, Info} ->
             case App of
