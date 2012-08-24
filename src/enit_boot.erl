@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(enit_boot).
--export([start/1, load_specs/1]).
+-export([start/1, load_specs/1, apply_config/1, apply_config/2]).
 -export([env_keeper/1, env_keeper_loop/1, get_boot_app_environments/0]).
 
 -define(ENV_SERVER, enit_env_keeper).
@@ -106,6 +106,11 @@ apply_config(Config) ->
                                                 application:set_env(App, Key, Value)
                                         end, AppConfig)
                   end, Config).
+
+apply_config(Config, AppGoal) ->
+    [lists:foreach(fun ({Key, Value}) ->
+                           application:set_env(App, Key, Value)
+                   end, AppConfig) || {App, AppConfig} <- Config, App == AppGoal].
 
 -spec load_specs([atom()]) -> [{atom(), [{atom(), term()}]}].
 load_specs(Applications) ->

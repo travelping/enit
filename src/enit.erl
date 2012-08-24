@@ -24,6 +24,9 @@
 -export([get_release_info/1, get_release_info/3, format_error/1]).
 -export([parse_cmdline/2, to_str/1]).
 
+%% API for extern using
+-export([configurate/2, configurate/3]).
+
 -include("enit.hrl").
 
 %% ----------------------------------------------------------------------------------------------------
@@ -142,6 +145,25 @@ startfg_fun(Release, Options) ->
             Error
     end.
 
+%cli_update(Release, Options) ->
+%    enit_log:init(Options),
+%    check_match(Release, Options, fun(ReleaseName) -> update_fun(ReleaseName, Options) end).
+
+%update_fun(Release, Options) ->
+%    case get_release_info(Release) of
+%        {ok, Info} ->
+%            case enit_remote:remote_get_status(Info) of
+%                {ok, #status{alive = true}} ->
+%                    enit_remote:update(Info, Options);
+%                {ok, #status{alive = false}} ->
+%                    {error, {not_started, Release}};
+%                Error ->
+%                    Error
+%            end;
+%        Error ->
+%            Error
+%    end.
+
 cli_stop(Release, Options) ->
     enit_log:init(Options),
     check_match(Release, Options, fun stop_fun/1).
@@ -225,6 +247,25 @@ join_pid(Pid) ->
     MRef = erlang:monitor(process, Pid),
     receive
         {'DOWN', MRef, process, Pid, _} -> ok
+    end.
+
+% --------------------------------------------------------------------------------------------------
+% -- API for extern using
+
+configurate(Release, Options) ->
+    configurate(Release, <<"all">>, Options).
+
+configurate(Release, App, Options) ->
+    case check_match(Release, Options, fun get_release_info/1) of
+        {ok, Info} ->
+            case App of
+                <<"all">> ->
+                    enit_boot:apply_config(Info#release.config);
+                _ ->
+                    enit_boot:apply_config(Info#release.config, App)
+            end;
+        Error ->
+            Error
     end.
 
 %% ----------------------------------------------------------------------------------------------------
