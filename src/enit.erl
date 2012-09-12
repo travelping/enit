@@ -44,15 +44,20 @@ cli_list(_Options) ->
                                               {ok, Status} ->
                                                   show_brief_info(Info, Status);
                                               {error, Error} ->
-                                                  throw({error, {get_status, Error}})
+                                                  show_brief_error(Info, Error)
                                           end;
                                       {error, Error} ->
-                                          throw({error, {get_release_info, Error}})
+                                          show_brief_error(Release, Error)
                                   end
                           end, Releases);
         {error, Error} ->
             {error, {list_dir, Dir, Error}}
     end.
+
+show_brief_error(#release{name = Name, version = Version, nodename = Nodename}, Error) ->
+    io:format("* ~s ~s [~s] (enit cann't connect to the node: ~p)~n", [Name, Version, Nodename, Error]);
+show_brief_error(Name, Error) ->
+    io:format("* ~s (enit cann't read the config: ~p)~n", [Name, Error]).
 
 show_brief_info(#release{name = Name, version = Version, nodename = Nodename} = Release, Status) ->
     RunDesc = case Status#status.alive of

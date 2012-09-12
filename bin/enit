@@ -23,6 +23,7 @@ main(_) ->
               "    list                   → list installed releases~n"
               "    stop <release>         → stop a release VM~n"
               "    reconfigure <release>  → dynamically apply config changes~n"
+              %"    update <release>       → dynamicly update release~n"
               "    status <release>       → get status information on a release~n~n"
               "Commands for debugging:~n"
               "    remsh <release>        → open a remote shell into a release~n"
