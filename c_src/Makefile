@@ -1,7 +1,8 @@
 PRIVDIR := ../priv
 
-CC := gcc
-RM := rm
+LD ?= ld
+CC ?= gcc
+RM ?= rm
 
 CFLAGS ?= -O2
 
