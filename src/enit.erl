@@ -93,7 +93,8 @@ show_long_info(Info, Status) ->
     show_table([{"Release:", Info#release.name},
                 {"Version:", Info#release.version},
                 {"Node:",    Info#release.nodename},
-                {"Cookie:",  Info#release.cookie}]),
+                {"Cookie:",  Info#release.cookie},
+                {"Extensions:",  to_list_string(Info#release.extensions)}]),
     io:nl(),
     show_status(Info, Status).
 
@@ -106,7 +107,7 @@ show_status(Info, Status = #status{alive = true}) ->
         true ->
             ok;
         {false, Apps} ->
-            io:format(user, "Applications are starting: ~p~n", [Apps])
+            show_table([{"Applications starting:", to_list_string(Apps)}])
     end,
     io:nl(),
     show_table([{"OTP:", Status#status.otp_version},
@@ -288,17 +289,23 @@ get_release_info(RelDir, ConfigDir, ReleaseName) ->
     RelFile = filename:join(Path, "release.enit"),
     case file:consult(RelFile) of
         {ok, [{release, _Name, Properties}]} ->
-            Info1 = #release{name = ReleaseName, path = Path},
-            case apply_properties(Properties, Info1) of
-                {ok, Info2} ->
-                    case get_config(RelDir, ConfigDir, ReleaseName) of
-                        {ok, Config} ->
+            case get_config(RelDir, ConfigDir, ReleaseName) of
+                {ok, Config, ExtensionsToAdd} ->
+                    {ExtensionNames, Applications} =
+                        lists:foldr(fun({Extension, ExtensionProp}, {Extensions, Apps}) ->
+                                            {[Extension | Extensions], proplists:get_value(applications, ExtensionProp, []) ++ Apps}
+                                    end, {[], []}, ExtensionsToAdd),
+                    OldApplications = proplists:get_value(applications, Properties, []),
+                    NewProperties = lists:keyreplace(applications, 1, Properties, {applications, lists:usort(OldApplications ++ Applications)}),
+                    Info1 = #release{name = ReleaseName, path = Path, extensions = ExtensionNames},
+                    case apply_properties(NewProperties, Info1) of
+                        {ok, Info2} ->
                             apply_config(Config, Info2);
-                        Error ->
-                            Error
+                        {error, {badprop, Prop}} ->
+                            {error, {bad_rel_prop, RelFile, Prop}}
                     end;
-                {error, {badprop, Prop}} ->
-                    {error, {bad_rel_prop, RelFile, Prop}}
+                Error ->
+                    Error
             end;
         {ok, _Terms} ->
             {error, {badrel, RelFile}};
@@ -336,9 +343,13 @@ to_atom(Bin) when is_binary(Bin) -> binary_to_atom(Bin, utf8);
 to_atom(Atm) when is_atom(Atm) -> Atm.
 
 get_config(RelDir, ConfigDir, Release) ->
-    BaseConfig = filename:join([RelDir, Release, "defaults.config"]),
-    UserConfig = filename:join([ConfigDir, Release, "user.config"]),
-    enit_config:read_files([BaseConfig, UserConfig]).
+    get_config([filename:join([RelDir, Release]), filename:join([ConfigDir, Release])]).
+
+get_config(Dirs) ->
+    Files = lists:foldr(fun(Dir, Acc) ->
+                                lists:sort(filelib:wildcard(filename:join([Dir, "*.config"]))) ++ Acc
+                        end, [], Dirs),
+    enit_config:read_files(Files).
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- Misc
@@ -420,6 +431,11 @@ column_widths(Table) ->
                                                   end, {1, OuterAcc}, tuple_to_list(Row)),
                         NewAcc
                 end, [], Table).
+
+% Make a string reprasantion of list of objects
+% In opposition to ~p there will be used to_str/1 method, that hide for example '' by atoms
+to_list_string(List)    ->
+    [$[, string:join([to_str(S) || S <- List], ", "),$]].
 
 to_str(List) when is_list(List)  -> List;
 to_str(Bin) when is_binary(Bin)  -> Bin;

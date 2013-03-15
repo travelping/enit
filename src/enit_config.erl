@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(enit_config).
--export([read_files/1, merge/2, diff/2, get/3, get/4]).
+-export([read_files/1, unsorted_merge/2, merge/2, diff/2, get/3, get/4]).
 -export_type([config/0]).
 
 -include("enit.hrl").
@@ -36,22 +36,39 @@ get(App, Key, Config, Default) ->
 %% -- Reading Config
 -spec read_files([file:name(), ...]) -> {ok, config()} | {error, {consult_config, file:name(), term()}}.
 read_files(Files) ->
-    read_files(Files, []).
+    read_files(Files, [], []).
 
-read_files([File | R], Acc) ->
+read_files([File | R], Extensions, Acc) ->
     case file:consult(File) of
         {ok, Terms} ->
-            read_files(R, merge(Acc, dedup_keys(Terms)));
+            {Extension, NewTerms} = check_extensions(Terms),
+            read_files(R, Extension ++ Extensions, unsorted_merge(Acc, NewTerms));
         {error, enoent} ->
-            read_files(R, Acc);
+            read_files(R, Extensions, Acc);
         {error, Error} ->
             {error, {consult_config, File, Error}}
     end;
-read_files([], Acc) ->
-    {ok, Acc}.
+read_files([], Addons, Acc) ->
+    {ok, Acc, lists:reverse(Addons)}.
+
+% --------------------------------------------------------------------------------------------------
+% -- Addons in configuration
+
+check_extensions(Terms) ->
+    case lists:keyfind(extension, 1, Terms) of
+        {extension, ExtensionName, Env} ->
+            {[{ExtensionName, Env}], lists:keydelete(extension, 1, Terms)};
+        false ->
+            {[], Terms}
+    end.
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- Merge/Diff
+
+-spec unsorted_merge(config(), config()) -> config().
+unsorted_merge(Config, NewConfig) ->
+    merge(Config, dedup_keys(NewConfig)).
+
 -spec merge(config(), config()) -> config().
 merge([{K1, V1} | R1], [{K2, V2} | R2]) when K1 == K2 ->
     [{K1, plmerge(V1, V2)} | merge(R1, R2)];

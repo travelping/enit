@@ -1,5 +1,6 @@
 -record(release, {
     name :: string(),
+    extensions :: [atom()],
     version :: string(),
     path :: file:name(),
     applications :: [atom()],

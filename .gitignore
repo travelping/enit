@@ -3,4 +3,7 @@
 /tetrapak/.local.cache
 /c_src/*.o
 /priv/*.so
+/test-log
+/test/*.beam
 /dist
+*~
