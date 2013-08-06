@@ -28,14 +28,7 @@
 
 start([RelDir, ConfDir, ReleaseName]) ->
     try
-        case application:load(enit) of
-            ok ->
-                ok;
-            {error, {already_loaded, enit}} ->
-                ok;
-            {error, LoadError} ->
-                throw({load_app, enit, LoadError})
-        end,
+        ensure_loaded(enit),
 
         enit_log:init([{syslog, getenv(syslog, false)}]),
         StartRetries = getenv(start_retries, unlimited),
@@ -101,11 +94,10 @@ format_error(Error) ->
     io_lib:format("unknown error: ~p", [Error]).
 
 apply_config(Config) ->
-    lists:foreach(fun ({App, AppConfig}) ->
-                          lists:foreach(fun ({Key, Value}) ->
-                                                application:set_env(App, Key, Value)
-                                        end, AppConfig)
-                  end, Config).
+    [begin
+        (App == node) orelse ensure_loaded(App),
+        [application:set_env(App, Key, Value) || {Key, Value} <- AppConfig]
+     end || {App, AppConfig} <- Config].
 
 apply_config(Config, AppGoal) ->
     [lists:foreach(fun ({Key, Value}) ->
@@ -117,16 +109,9 @@ load_specs(Applications) ->
     load_specs(Applications, []).
 
 load_specs([App | Rest], Acc) ->
-    case application:load(App) of
-        ok ->
-            {ok, Env} = application:get_key(App, env),
-            load_specs(Rest, [{App, Env}] ++ load_dep_specs(App) ++ Acc);
-        {error, {already_loaded, App}} ->
-            {ok, Env} = application:get_key(App, env),
-            load_specs(Rest, [{App, Env}] ++ load_dep_specs(App) ++ Acc);
-        {error, Error} ->
-            throw({load_app, App, Error})
-    end;
+    ensure_loaded(App),
+    {ok, Env} = application:get_key(App, env),
+    load_specs(Rest, [{App, Env}] ++ load_dep_specs(App) ++ Acc);
 load_specs([], Acc) ->
     lists:ukeysort(1, Acc).
 
@@ -232,6 +217,16 @@ start_app({application, App, Keys}, IncludedBy, Starting, Actions, Started) ->
                             {[{start, App} | LoadActions] ++ DepActions, gb_sets:add(App, DepStarted)}
                     end
             end
+    end.
+
+ensure_loaded(App) ->
+    case application:load(App) of
+        ok ->
+            ok;
+        {error, {already_loaded, App}} ->
+            ok;
+        {error, LoadError} ->
+            throw({load_app, App, LoadError})
     end.
 
 %% ----------------------------------------------------------------------------------------------------
