@@ -505,13 +505,8 @@ parse_options([Arg | Rest], OptDesc, NextIsArg, Result, Args) ->
 
 parse_option(Option, Rest, OptDefs) ->
     case find_option(Option, OptDefs) of
-        {option, Name, ArgSize, _Flags} ->
-            case catch lists:split(ArgSize, Rest) of
-                {'EXIT', _} ->
-                    throw({error, {option_args, Option, ArgSize}});
-                {OptionArgs, Remaining} ->
-                    {list_to_tuple([Name | OptionArgs]), Remaining}
-            end;
+        {option, _Name, _ArgSize, _Flags} = OptionTuple ->
+            split_args(Option, OptionTuple, Rest);
         {flag, Name, _Flags} ->
             {{Name, true}, Rest};
         undefined ->
@@ -523,4 +518,14 @@ find_option(Option, [OptDef | Rest]) ->
     case lists:member(Option, element(tuple_size(OptDef), OptDef)) of
         false -> find_option(Option, Rest);
         true  -> OptDef
+    end.
+
+split_args(_Option, {option, Name, all, _Flags}, Rest) ->
+    {list_to_tuple([Name | Rest]), []};
+split_args(Option, {option, Name, ArgSize, _Flags}, Rest) ->
+    case catch lists:split(ArgSize, Rest) of
+        {'EXIT', _} ->
+            throw({error, {option_args, Option, ArgSize}});
+        {OptionArgs, Remaining} ->
+            {list_to_tuple([Name | OptionArgs]), Remaining}
     end.

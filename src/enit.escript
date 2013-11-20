@@ -14,6 +14,7 @@ main([Command | Args]) ->
     run(Command, Args);
 main(_) ->
     SN = escript:script_name(),
+    DebugInfo = debug_available(assert_loaded_redbug()),
     io:format("Usage: ~s <command> <args...>~n"
               "~n"
               "Commands:~n"
@@ -33,7 +34,8 @@ main(_) ->
               "      -f, --follow (keep reading from file)~n"
               "For all commands with <release> there is flag:~n"
               "      -m, --match          → if no release with this name, find if exists~n"
-              "                             first release, that matched~n",
+              "                             first release, that matched~n"
+              ++ DebugInfo,
               [SN]).
 
 run("startfg", Argv) ->
@@ -67,11 +69,14 @@ match_options() ->
     [{flag, match, ["-m", "--match"]}].
 
 cli_command(Command, Argv, ArgCount, OptionSpec) ->
-    case enit:parse_cmdline(Argv, OptionSpec) of
+    DebugOptions = [{option, debug_spec, all, ["--debug_spec"]} || assert_loaded_redbug()],
+    case enit:parse_cmdline(Argv, DebugOptions ++ OptionSpec) of
         {error, Error} ->
             io:format("Error: invalid options: ~s~n", [enit:format_error(Error)]),
             erlang:halt(255);
         {ok, Options, Args} when length(Args) == ArgCount ->
+            DebugOption = lists:keyfind(debug_spec, 1, Options),
+            dbg_start(DebugOption),
             cli_command1(Command, Args, Options);
         {ok, _Options, _Args} ->
             io:format("Error: invalid number of arguments (command ~s expects ~b)~n", [Command, ArgCount]),
@@ -93,3 +98,22 @@ cli_command1(Command, Args, Options) ->
             enit_log:error("enit crashed: ~s:~p~n~p", [Class, Other, erlang:get_stacktrace()]),
             halt(10)
     end.
+
+debug_available(false) -> "";
+debug_available(true) -> "For debugging erlang functions:~n"
+                         "     --debug_spec          → used as last option with a list of functions~n".
+
+assert_loaded_redbug() ->
+    case application:load(redbug) of
+        ok ->
+            true;
+        {error, {already_loaded, _App}} ->
+            true;
+        _ ->
+            false
+    end.
+
+dbg_start(false) -> ok;
+dbg_start(DebugOption) ->
+    [debug_spec | DebugSpecs] = tuple_to_list(DebugOption),
+    redbug:start(DebugSpecs, [{time, infinity}, {msgs, 100000}]).
