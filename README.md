@@ -23,7 +23,7 @@ applications nor the Erlang VM. Instead, you're responsible to
 install your applications to the target using any mechanism of
 your choice (e.g. Debian packages). You define releases by simply 
 dropping a release specification into the definition directory,
-`/var/lib/enit`. You start and stop your release using the `enit` 
+`/var/lib`. You start and stop your release using the `enit` 
 command line tool.
 
 This model allows you to upgrade applications separately.
@@ -48,12 +48,12 @@ Release Specification Example
 
 We're going to define a release called `relex`.
 
-First we need to create a subdirectory of `/var/lib/enit` with 
+First we need to create a subdirectory of `/var/lib` with 
 the same name as the release:
 
-	$ mkdir -p /var/lib/enit/relex
+	$ mkdir -p /var/lib/relex
 
-We now add the release definition in `/var/lib/enit/relex/release.enit`:
+We now add the release definition in `/var/lib/relex/release.enit`:
 
 	{release, relex, [
 		{vsn, "1.0"},
@@ -64,7 +64,7 @@ We now add the release definition in `/var/lib/enit/relex/release.enit`:
 		]}
 	]}.
 
-and some configuration defaults in `/var/lib/enit/relex/defaults.config`:
+and some configuration defaults in `/var/lib/relex/defaults.config`:
 
 	{node, [
 		{run_as_user, "relex"},
@@ -83,7 +83,7 @@ and some configuration defaults in `/var/lib/enit/relex/defaults.config`:
 	]}.
 
 We also set some host-specific configuration
-parameters in the *user configuration file*, `/etc/enit/relex/user.config`:
+parameters in the *user configuration file*, `/etc/relex/user.config`:
 
 	{node, [
 		{cookie, "monster"}
@@ -154,7 +154,7 @@ Dynamic Configuration Example
 Suppose we want to change the value of `kabozzle_domain` in
 `relex_application` to some other value.
 
-Edit `/etc/enit/relex/user.config`:
+Edit `/etc/relex/user.config`:
 
 	...
 	
