@@ -33,10 +33,11 @@
 %% -- CLI commands
 cli_list(_Options) ->
     {ok, Dir} = application:get_env(enit, release_dir),
-    case file:list_dir(Dir) of
-        {ok, []} ->
+    Dirs = [filename:dirname(F) || F <- filelib:wildcard(Dir ++ "/*/release.enit")],
+    case Dirs of
+        [] ->
             io:format("no releases~n");
-        {ok, Releases} ->
+        Releases ->
             lists:foreach(fun (Release) ->
                                   case get_release_info(Release) of
                                       {ok, Info} ->
@@ -49,9 +50,7 @@ cli_list(_Options) ->
                                       {error, Error} ->
                                           show_brief_error(Release, Error)
                                   end
-                          end, Releases);
-        {error, Error} ->
-            {error, {list_dir, Dir, Error}}
+                          end, Releases)
     end.
 
 show_brief_error(#release{name = Name, version = Version, nodename = Nodename}, Error) ->
@@ -374,13 +373,12 @@ check_match(Release, Options, Fun) ->
 
 match_release_name(String) ->
     {ok, Dir} = application:get_env(enit, release_dir),
-    case file:list_dir(Dir) of
-        {ok, []} ->
+    Dirs = [filename:dirname(F) || F <- filelib:wildcard(Dir ++ "/*/release.enit")],
+    case Dirs of
+        [] ->
             nomatch;
-        {ok, Releases} ->
-            match(String, Releases);
-        _ ->
-            nomatch
+        Releases ->
+            match(String, Releases)
     end.
 
 match(_String, []) -> nomatch;
