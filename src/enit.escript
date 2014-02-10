@@ -2,6 +2,12 @@
 %%! -hidden -connect_all false -smp disable -kernel inet_dist_use_interface {127,0,0,1}
 -mode(compile).
 
+main(["-v"]) ->
+    application:load(enit),
+    SN = escript:script_name(),
+    {ok, Version} = application:get_key(enit, vsn),
+    io:format("~s version: ~s~n", [SN, Version]);
+
 main([Command | Args]) ->
     application:load(enit),
 
