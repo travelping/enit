@@ -32,9 +32,7 @@
 %% ----------------------------------------------------------------------------------------------------
 %% -- CLI commands
 cli_list(_Options) ->
-    {ok, Dir} = application:get_env(enit, release_dir),
-    Dirs = [filename:dirname(F) || F <- filelib:wildcard(Dir ++ "/*/release.enit")],
-    case Dirs of
+    case all_releases() of
         [] ->
             io:format("no releases~n");
         Releases ->
@@ -73,17 +71,12 @@ show_brief_info(#release{name = Name, version = Version, nodename = Nodename} = 
     io:format("* ~s ~s [~s] (~s)~n", [Name, Version, Nodename, RunDesc]).
 
 cli_status(Release, Options) ->
-    check_match(Release, Options, fun status_fun/1).
+    check_match_info(Release, Options, fun status_fun/1).
 
-status_fun(Release) ->
-    case get_release_info(Release) of
-        {ok, Info} ->
-            case enit_remote:remote_get_status(Info) of
-                {ok, Status} ->
-                    show_long_info(Info, Status);
-                Error ->
-                    Error
-            end;
+status_fun(Info) ->
+    case enit_remote:remote_get_status(Info) of
+        {ok, Status} ->
+            show_long_info(Info, Status);
         Error ->
             Error
     end.
@@ -133,19 +126,14 @@ mem_item(Item) ->
 
 cli_startfg(Release, Options) ->
     enit_log:init(Options),
-    check_match(Release, Options, fun(ReleaseName) -> startfg_fun(ReleaseName, Options) end).
+    check_match_info(Release, Options, fun(Info) -> startfg_fun(Info, Options) end).
 
-startfg_fun(Release, Options) ->
-    case get_release_info(Release) of
-        {ok, Info} ->
-            case enit_remote:remote_get_status(Info) of
-                {ok, #status{alive = true}} ->
-                    {error, {already_running, Release}};
-                {ok, #status{alive = false}} ->
-                    enit_vm:startfg(Info, Options);
-                Error ->
-                    Error
-            end;
+startfg_fun(Info, Options) ->
+    case enit_remote:remote_get_status(Info) of
+        {ok, #status{alive = true}} ->
+            {error, {already_running, Info#release.name}};
+        {ok, #status{alive = false}} ->
+            enit_vm:startfg(Info, Options);
         Error ->
             Error
     end.
@@ -171,45 +159,24 @@ startfg_fun(Release, Options) ->
 
 cli_stop(Release, Options) ->
     enit_log:init(Options),
-    check_match(Release, Options, fun stop_fun/1).
+    check_match_info(Release, Options, fun stop_fun/1).
 
-stop_fun(Release) ->
-    case get_release_info(Release) of
-        {ok, Info} ->
-            case enit_remote:remote_get_status(Info) of
-                {ok, #status{alive = true}} ->
-                    enit_vm:stop(Info);
-                {ok, #status{alive = false}} ->
-                    {error, {not_running, Release}};
-                Error ->
-                    Error
-            end;
+stop_fun(Info) ->
+    case enit_remote:remote_get_status(Info) of
+        {ok, #status{alive = true}} ->
+            enit_vm:stop(Info);
+        {ok, #status{alive = false}} ->
+            {error, {not_running, Info#release.name}};
         Error ->
             Error
     end.
 
 cli_reconfigure(Release, Options) ->
     enit_log:init(Options),
-    check_match(Release, Options, fun reconfigure_fun/1).
-
-reconfigure_fun(Release) ->
-    case get_release_info(Release) of
-        {ok, Info} ->
-            enit_remote:remote_config_change(Info);
-        Error ->
-            Error
-    end.
+    check_match_info(Release, Options, fun enit_remote:remote_config_change/1).
 
 cli_remsh(Release, Options) ->
-    check_match(Release, Options, fun remsh_fun/1).
-
-remsh_fun(Release) ->
-    case get_release_info(Release) of
-        {ok, Info} ->
-            enit_vm:start_remsh(Info);
-        Error ->
-            Error
-    end.
+    check_match_info(Release, Options, fun enit_vm:start_remsh/1).
 
 cli_traceip(PortString, Options) ->
     case catch (list_to_integer(PortString)) of
@@ -262,7 +229,7 @@ configurate(Release, Options) ->
 
 configurate(Release, App, Options) ->
     application:load(enit),
-    case check_match(Release, Options, fun get_release_info/1) of
+    case check_match_info(Release, Options, fun get_release_info/1) of
         {ok, Info} ->
             case App of
                 <<"all">> ->
@@ -353,17 +320,16 @@ get_config(Dirs) ->
 %% ----------------------------------------------------------------------------------------------------
 %% -- Misc
 
-check_match(Release, Options, Fun) ->
-    case Fun(Release) of
+all_releases() ->
+    {ok, Dir} = application:get_env(enit, release_dir),
+    [filename:basename(filename:dirname(F)) || F <- filelib:wildcard(Dir ++ "/*/release.enit")].
+
+check_match_info(Release, Options, Fun) ->
+    case apply_on_release(Release, Fun) of
         {error, {faccess, _, enoent}} = Error ->
-            case lists:member({match, true}, Options) of
+            case proplists:get_bool(match, Options) of
                 true ->
-                    case match_release_name(Release) of
-                        {match, FoundRelease} ->
-                            Fun(FoundRelease);
-                        nomatch ->
-                            Error
-                    end;
+                    match_apply_on_release(Release, Fun, Error);
                 false ->
                     Error
             end;
@@ -371,14 +337,20 @@ check_match(Release, Options, Fun) ->
             OtherResult
     end.
 
-match_release_name(String) ->
-    {ok, Dir} = application:get_env(enit, release_dir),
-    Dirs = [filename:dirname(F) || F <- filelib:wildcard(Dir ++ "/*/release.enit")],
-    case Dirs of
-        [] ->
-            nomatch;
-        Releases ->
-            match(String, Releases)
+match_apply_on_release(Release, Fun, Error) ->
+    case match(Release, all_releases()) of
+        {match, FoundRelease} ->
+            apply_on_release(FoundRelease, Fun);
+        nomatch ->
+            Error
+    end.
+
+apply_on_release(Release, Fun) ->
+    case get_release_info(Release) of
+        {ok, Info} ->
+            Fun(Info);
+        Error ->
+            Error
     end.
 
 match(_String, []) -> nomatch;

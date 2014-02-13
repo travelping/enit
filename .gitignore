@@ -1,5 +1,6 @@
 /ebin/*.beam
 /ebin/*.app
+/bin/
 /tetrapak/.local.cache
 /c_src/*.o
 /priv/*.so
