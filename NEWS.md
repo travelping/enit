@@ -1,6 +1,11 @@
 enit
 ====
 
+Changes with 0.2.4 - 21 Feb 2014
+--------------------------------
+
+* add enit:call for rpc on an enit nodes
+
 Changes with 0.2.3 - 20 Dec 2013
 --------------------------------
 
