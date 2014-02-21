@@ -23,7 +23,7 @@
 -export([ensure_loaded/1, remote_get_status/1, remote_config_change/1,
          unique_nodename/1, gen_nodename/1]).
 %% RPC functions called in the target VM.
--export([get_status_proplist/0, config_change/1]).
+-export([get_status_proplist/0, config_change/1, call/4]).
 
 -include("enit.hrl").
 
@@ -48,6 +48,19 @@ remote_config_change(Info = #release{nodename = Nodename, config = Config}) ->
                                     {badrpc, Error} ->
                                         {error, {badrpc, Nodename, Error}}
                                 end
+                        end;
+                    (#status{alive = false}) ->
+                        {error, {not_running, Nodename}}
+                end).
+
+call(Info = #release{nodename = Nodename}, Module, Function, Args) ->
+    with_status(Info,
+                fun (#status{alive = true}) ->
+                        case rpc:call(Nodename, Module, Function, Args) of
+                            {badrpc, Error} ->
+                                {error, {badrpc, Nodename, Error}};
+                            Res ->
+                                Res
                         end;
                     (#status{alive = false}) ->
                         {error, {not_running, Nodename}}

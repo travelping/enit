@@ -25,6 +25,7 @@
 -export([parse_cmdline/2, to_str/1]).
 
 %% API for extern using
+-export([call/5]).
 -export([configurate/2, configurate/3]).
 
 -include("enit.hrl").
@@ -223,6 +224,10 @@ join_pid(Pid) ->
 
 % --------------------------------------------------------------------------------------------------
 % -- API for extern using
+
+call(Release, Options, Module, Function, Args) ->
+    application:load(enit),
+    check_match_info(Release, Options, fun(Info) -> enit_remote:call(Info, Module, Function, Args) end).
 
 configurate(Release, Options) ->
     configurate(Release, <<"all">>, Options).
