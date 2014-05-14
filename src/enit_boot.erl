@@ -36,6 +36,7 @@ start([RelDir, ConfDir, ReleaseName]) ->
 
         {ok, Info} = enit:get_release_info(RelDir, ConfDir, ReleaseName),
         enit_log:info("booting release ~s ~s~n", [Info#release.name, Info#release.version]),
+        true = erlang:set_cookie(node(), Info#release.cookie),
 
         AppEnvironments = load_specs(Info#release.applications),
         proc_lib:spawn(?MODULE, env_keeper, [AppEnvironments]),

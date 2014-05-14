@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(enit_vm).
--export([startfg/2, startfg/5, start_remsh/1, stop/1]).
+-export([startfg/2, startfg/4, start_remsh/1, stop/1]).
 
 -include("enit.hrl").
 -include("enit_posix.hrl").
@@ -30,21 +30,20 @@ erl_binary() ->
     filename:join([code:root_dir(), "bin", "erl"]).
 
 startfg(Rel = #release{}, Options) ->
-    startfg(Rel#release.name, Rel#release.nodename, Rel#release.cookie, Rel#release.config, Options).
+    startfg(Rel#release.name, Rel#release.nodename, Rel#release.config, Options).
 
-startfg(RelName, NodeName, Cookie, Config, OptionsIn) ->
+startfg(RelName, NodeName, Config, OptionsIn) ->
     case enit_posix:getuid() of
-        {ok, 0} -> startfg2(RelName, NodeName, Cookie, Config, OptionsIn);
+        {ok, 0} -> startfg2(RelName, NodeName, Config, OptionsIn);
         {ok, _} -> {error, notroot}
     end.
 
-startfg2(RelName, NodeName, Cookie, Config, OptionsIn) ->
+startfg2(RelName, NodeName, Config, OptionsIn) ->
     {ok, RelPath} = application:get_env(enit, release_dir),
     {ok, ConfPath} = application:get_env(enit, config_dir),
 
     DefaultArgs = ["-sname", atom_to_list(NodeName),
                    "-noshell",
-                   "-setcookie", atom_to_list(Cookie),
                    "-run", "enit_boot", "start", RelPath, ConfPath, RelName],
     ConfigArgs = build_erl_args(Config),
     Options = set_retry_options(OptionsIn, set_retry_options(proplists:get_value(node, Config, []), OptionsIn)),
