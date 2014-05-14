@@ -12,7 +12,6 @@ main([Command | Args]) ->
     application:load(enit),
 
     %% don't start native dns resolver subprocess
-    inet_db:set_lookup([dns]),
     enit_posix:load_nif_or_die(),
 
     %% ensure epmd is running
