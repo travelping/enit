@@ -1,6 +1,13 @@
 enit
 ====
 
+Changes with 0.2.5 - 15 May 2014
+--------------------------------
+
+* document the enit:apply_config and enit:get_config functions
+* setting cookie not in cmd (for security reason)
+* use native erlang resolver, instead of dns
+
 Changes with 0.2.4 - 21 Feb 2014
 --------------------------------
 

@@ -26,7 +26,7 @@
 
 %% API for extern using
 -export([call/5]).
--export([configurate/2, configurate/3]).
+-export([get_config/2, get_config/3, apply_config/2, apply_config/3, configurate/2, configurate/3]).
 
 -include("enit.hrl").
 
@@ -230,21 +230,26 @@ call(Release, Options, Module, Function, Args) ->
     check_match_info(Release, Options, fun(Info) -> enit_remote:call(Info, Module, Function, Args) end).
 
 configurate(Release, Options) ->
-    configurate(Release, <<"all">>, Options).
+    apply_config(Release, Options).
 
 configurate(Release, App, Options) ->
+    apply_config(Release, App, Options).
+
+apply_config(Release, Options) ->
+    on_configure(Release, Options, fun(Config) -> enit_boot:apply_config(Config) end).
+
+apply_config(Release, App, Options) ->
+    on_configure(Release, Options, fun(Config) -> enit_boot:apply_config(Config, App) end).
+
+get_config(Release, Options) ->
+    on_configure(Release, Options, fun(Config) -> Config end).
+
+get_config(Release, App, Options) ->
+    on_configure(Release, Options, fun(Config) -> proplists:get_value(App, Config, []) end).
+
+on_configure(Release, Options, Fun) ->
     application:load(enit),
-    case check_match_info(Release, Options, fun get_release_info/1) of
-        {ok, Info} ->
-            case App of
-                <<"all">> ->
-                    enit_boot:apply_config(Info#release.config);
-                _ ->
-                    enit_boot:apply_config(Info#release.config, App)
-            end;
-        Error ->
-            Error
-    end.
+    check_match_info(Release, Options, fun(Info) -> Fun(Info#release.config) end).
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- Release Info
@@ -260,7 +265,7 @@ get_release_info(RelDir, ConfigDir, ReleaseName) ->
     RelFile = filename:join(Path, "release.enit"),
     case file:consult(RelFile) of
         {ok, [{release, _Name, Properties}]} ->
-            case get_config(RelDir, ConfigDir, ReleaseName) of
+            case get_config_for_release(RelDir, ConfigDir, ReleaseName) of
                 {ok, Config, ExtensionsToAdd} ->
                     {ExtensionNames, Applications} =
                         lists:foldr(fun({Extension, ExtensionProp}, {Extensions, Apps}) ->
@@ -271,7 +276,7 @@ get_release_info(RelDir, ConfigDir, ReleaseName) ->
                     Info1 = #release{name = ReleaseName, path = Path, extensions = ExtensionNames},
                     case apply_properties(NewProperties, Info1) of
                         {ok, Info2} ->
-                            apply_config(Config, Info2);
+                            apply_config_on(Config, Info2);
                         {error, {badprop, Prop}} ->
                             {error, {bad_rel_prop, RelFile, Prop}}
                     end;
@@ -297,7 +302,7 @@ apply_properties([_Term | _Props], _Info) ->
 apply_properties([], Info) ->
     {ok, Info}.
 
-apply_config(Config, Info) ->
+apply_config_on(Config, Info) ->
     NodeProps = proplists:get_value(node, Config, []),
     case proplists:is_defined(cookie, NodeProps) of
         true ->
@@ -313,7 +318,7 @@ to_atom(Str) when is_list(Str) -> list_to_atom(Str);
 to_atom(Bin) when is_binary(Bin) -> binary_to_atom(Bin, utf8);
 to_atom(Atm) when is_atom(Atm) -> Atm.
 
-get_config(RelDir, ConfigDir, Release) ->
+get_config_for_release(RelDir, ConfigDir, Release) ->
     get_config([filename:join([RelDir, Release]), filename:join([ConfigDir, Release])]).
 
 get_config(Dirs) ->
