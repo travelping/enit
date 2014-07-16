@@ -267,12 +267,13 @@ get_release_info(RelDir, ConfigDir, ReleaseName) ->
         {ok, [{release, _Name, Properties}]} ->
             case get_config_for_release(RelDir, ConfigDir, ReleaseName) of
                 {ok, Config, ExtensionsToAdd} ->
-                    {ExtensionNames, Applications} =
+                    {ExtensionNames, ExtraApplications} =
                         lists:foldr(fun({Extension, ExtensionProp}, {Extensions, Apps}) ->
                                             {[Extension | Extensions], proplists:get_value(applications, ExtensionProp, []) ++ Apps}
                                     end, {[], []}, ExtensionsToAdd),
-                    OldApplications = proplists:get_value(applications, Properties, []),
-                    NewProperties = lists:keyreplace(applications, 1, Properties, {applications, lists:usort(OldApplications ++ Applications)}),
+                    Applications = proplists:get_value(applications, Properties, []),
+                    NewAppplications = Applications ++ lists:dropwhile(fun(X) -> lists:member(X, Applications) end, ExtraApplications),
+                    NewProperties = lists:keyreplace(applications, 1, Properties, {applications, NewAppplications}),
                     Info1 = #release{name = ReleaseName, path = Path, extensions = ExtensionNames},
                     case apply_properties(NewProperties, Info1) of
                         {ok, Info2} ->
