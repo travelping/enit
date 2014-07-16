@@ -1,6 +1,14 @@
 enit
 ====
 
+Changes with 0.2.6 - xx Jul 2014
+--------------------------------
+
+* change application start-up, before the list of applications was sorted
+  before resolving the dependencies. This could lead to applications that
+  had no other dependencies to be started last. Now, the order as specified
+  in the release.enit is kept.
+
 Changes with 0.2.5 - 15 May 2014
 --------------------------------
 
