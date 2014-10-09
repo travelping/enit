@@ -201,3 +201,31 @@ Read the configuration:
 
     enit:get_config(RELEASE, [{match, true}]).
     enit:get_config(RELEASE, APPLICATION, [{match, true}]).
+
+Build-in dbg support in enit
+------------------------------
+
+For tracing go to the node
+
+    enit remsh <release>
+
+After you can start dbg with
+
+    enitdbg:ip(9876).
+
+It will start a tracer for localhost on port 9876, that is possible to trace from command line interface with
+
+    enit traceip 9876
+
+In a erlang shell, you can specify the normal dbg commands for traces. Example:
+
+    dbg:p(all, c). % trace all calls
+    dbg:tpl(lists, seq, [{'_',[],[{return_trace},{exception_trace}]}]).
+    dbg:stop_clear() % Stop tracer and clear all traces
+
+For more commands, please refer [erlang dbg documentation](http://erlang.org/doc/man/dbg.html).
+
+For traceing calls, there are 2 helper functions
+
+    enitdbg:mod(lists).
+    enitdbg:fn(lists, seq).
