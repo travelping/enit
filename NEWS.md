@@ -1,7 +1,12 @@
 enit
 ====
 
-Changes with 0.2.6 - xx Jul 2014
+Changes with 0.2.7 - 25 Nov 2014
+--------------------------------
+
+* make started applications as permanent, as they should stop the vm, when application is stoped
+
+Changes with 0.2.6 - 16 Jul 2014
 --------------------------------
 
 * change application start-up, before the list of applications was sorted
