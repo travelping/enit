@@ -145,7 +145,7 @@ start_apps(AppsToStart, AppsStarted, IncludedBy) ->
                                        start_app(Spec, IncludedBy, gb_sets:empty(), CurActions, CurStarted)
                                end, {[], AppsStarted}, AppsToStart),
     lists:foreach(fun ({start, App}) ->
-                          case application:start(App) of
+                          case application:start(App, permanent) of
                               ok -> enit_log:info("started ~s~n", [App]);
                               {error, {already_started, App}} -> ok;
                               {error, StartReason} -> throw({start_failed, App, StartReason, AppsStarted})
