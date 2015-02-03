@@ -1,6 +1,11 @@
 enit
 ====
 
+Changes with 0.2.7 - 03 Feb 2015
+--------------------------------
+
+* extend Documentation
+
 Changes with 0.2.7 - 25 Nov 2014
 --------------------------------
 

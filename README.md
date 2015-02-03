@@ -23,7 +23,7 @@ applications nor the Erlang VM. Instead, you're responsible to
 install your applications to the target using any mechanism of
 your choice (e.g. Debian packages). You define releases by simply
 dropping a release specification into the definition directory,
-`/var/lib`. You start and stop your release using the `enit`
+`/var/lib/enit`. You start and stop your release using the `enit`
 command line tool.
 
 This model allows you to upgrade applications separately.
@@ -48,7 +48,7 @@ Release Specification Example
 
 We're going to define a release called `relex`.
 
-First we need to create a subdirectory of `/var/lib` with
+First we need to create a subdirectory of `/var/lib/enit` with
 the same name as the release:
 
 	$ mkdir -p /var/lib/relex
@@ -229,3 +229,23 @@ For traceing calls, there are 2 helper functions
 
     enitdbg:mod(lists).
     enitdbg:fn(lists, seq).
+
+Release extensions
+------------------
+
+Suppose we want to extend the functionality of our release with new applications and configuration.
+As example we have relex_snmp application that provides optional functionality for the relex release.
+
+Simply add `/etc/enit/relex/snmp_support.config` (Config files are read in alphabetical order):
+
+    {extension, 'relex-with-snmp', [
+        {applications, [relex_snmp]}
+    ]}.
+
+    {relex_snmp, [
+
+    ]}.
+
+What needs to be in this config file:
+1) An extension with the extension name, where you can define the additional applications.
+2) Config sections for the applications that will additionally be (re-)configured.
