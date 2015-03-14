@@ -26,6 +26,7 @@
 -export([get_status_proplist/0, config_change/1, call/4]).
 
 -include("enit.hrl").
+-define(RANGE, 1048576).
 
 -spec remote_get_status(#release{}) -> #status{}.
 remote_get_status(Info) ->
@@ -151,9 +152,9 @@ unique_nodename(Prefix) ->
     unique_nodename(Prefix, 5).
 
 unique_nodename(Prefix, 0) ->
-    gen_nodename(Prefix ++ integer_to_list(erlang:phash2(make_ref(), 20)));
+    gen_nodename(Prefix ++ integer_to_list(erlang:phash2(make_ref(), ?RANGE)));
 unique_nodename(Prefix, Retries) ->
-    Name = Prefix ++ integer_to_list(erlang:phash2(make_ref(), 20)),
+    Name = Prefix ++ integer_to_list(erlang:phash2(make_ref(), ?RANGE)),
     case erl_epmd:names() of
         {ok, EpmdNames} ->
             case lists:keymember(Name, 1, EpmdNames) of
