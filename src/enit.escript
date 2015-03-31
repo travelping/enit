@@ -3,12 +3,14 @@
 -mode(compile).
 
 main(["-v"]) ->
+    io:setopts([{encoding, unicode}]),
     application:load(enit),
     SN = escript:script_name(),
     {ok, Version} = application:get_key(enit, vsn),
     io:format("~s version: ~s~n", [SN, Version]);
 
 main([Command | Args]) ->
+    io:setopts([{encoding, unicode}]),
     application:load(enit),
 
     %% don't start native dns resolver subprocess
@@ -18,6 +20,7 @@ main([Command | Args]) ->
     os:cmd("epmd -daemon"),
     run(Command, Args);
 main(_) ->
+    io:setopts([{encoding, unicode}]),
     SN = escript:script_name(),
     DebugInfo = debug_available(assert_loaded_redbug()),
     io:format("Usage: ~s <command> <args...>~n"
