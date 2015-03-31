@@ -42,10 +42,22 @@ start([RelDir, ConfDir, ReleaseName]) ->
         proc_lib:spawn(?MODULE, env_keeper, [AppEnvironments]),
 
         enit_log:info("applying bootstrap configuration~n", []),
-        apply_config(Info#release.config),
+        % apply_config(Info#release.config),
+
+        % apply cuttlefish conf
+        NewInfo = case enit_init:apply_conf(Info) of
+            {error, _Type, _Error} -> 
+                % Default config
+                enit_log:info("error: ~p ~p~n", [_Type, _Error]),
+                apply_config(Info#release.config);
+            Info1 -> 
+                % New config from cuttlefish
+                apply_config(Info1#release.config),
+                Info#release{config = Info1#release.config}
+        end,
 
         IncludedBy = build_included_by(AppEnvironments),
-        try_app_boot(Info, gb_sets:empty(), IncludedBy, StartRetries, StartDelay),
+        try_app_boot(NewInfo, gb_sets:empty(), IncludedBy, StartRetries, StartDelay),
 
         enit_log:info("started release ~s ~s~n", [Info#release.name, Info#release.version])
     catch

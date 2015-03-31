@@ -3,12 +3,14 @@
 -mode(compile).
 
 main(["-v"]) ->
+    io:setopts([{encoding, unicode}]),
     application:load(enit),
     SN = escript:script_name(),
     {ok, Version} = application:get_key(enit, vsn),
     io:format("~s version: ~s~n", [SN, Version]);
 
 main([Command | Args]) ->
+    io:setopts([{encoding, unicode}]),
     application:load(enit),
 
     %% don't start native dns resolver subprocess
@@ -18,6 +20,7 @@ main([Command | Args]) ->
     os:cmd("epmd -daemon"),
     run(Command, Args);
 main(_) ->
+    io:setopts([{encoding, unicode}]),
     SN = escript:script_name(),
     DebugInfo = debug_available(assert_loaded_redbug()),
     io:format("Usage: ~s <command> <args...>~n"
@@ -32,6 +35,8 @@ main(_) ->
               %"    update <release>       → dynamicly update release~n"
               "    status <release>       → get status information on a release~n~n"
               "Commands for debugging:~n"
+              "    initrel <release>      → initialize release~n"            
+              "    gen_default_conf <release> → generate default configuraion for release~n"            
               "    remsh <release>        → open a remote shell into a release~n"
               "    traceip <port>         → start a TCP trace client (see dbg:trace_client/3)~n"
               "      -h, --host <host> (connect to host instead of localhost)~n"
@@ -43,6 +48,10 @@ main(_) ->
               ++ DebugInfo,
               [SN]).
 
+run("initrel", Argv) ->
+  cli_command("initrel", Argv, 1, match_options());
+run("gen_default_conf", Argv) ->
+  cli_command("gen_default_conf", Argv, 1, match_options());
 run("startfg", Argv) ->
     cli_command("startfg", Argv, 1, match_options() ++ syslog_options() ++ start_options());
 run("stop", Argv) ->
