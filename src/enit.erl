@@ -19,7 +19,7 @@
 %% DEALINGS IN THE SOFTWARE.
 
 -module(enit).
--export([cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2,
+-export([cli_initrel/2, cli_gen_default_conf/2, cli_list/1, cli_status/2, cli_startfg/2, cli_stop/2, cli_remsh/2,
          cli_traceip/2, cli_tracefile/2, cli_reconfigure/2]).
 -export([get_release_info/1, get_release_info/3, format_error/1]).
 -export([parse_cmdline/2, to_str/1]).
@@ -32,6 +32,23 @@
 
 %% ----------------------------------------------------------------------------------------------------
 %% -- CLI commands
+cli_initrel(Release, _Options) ->
+    enit_init:create_defaults(Release).
+
+cli_gen_default_conf(Release, _Options) ->
+    {ok, ConfDir} = application:get_env(enit, config_dir),
+    Destination = filename:join([ConfDir, Release, "00-default.conf"]),
+    {ok, Info} = get_release_info(Release),
+    Maps = enit_init:get_mappings(Info#release.applications),
+    case cuttlefish_conf:generate_file(Maps, Destination) of
+        ok -> 
+            io:format("File ~p has been successfully created~n", [Destination]),
+            ok;
+        Error -> 
+            io:format("Error: ~p~n", Error),
+            error
+    end.
+
 cli_list(_Options) ->
     case all_releases() of
         [] ->
@@ -311,6 +328,7 @@ apply_config_on(Config, Info) ->
             {ok, Info#release{cookie = to_atom(proplists:get_value(cookie, NodeProps)),
                               nodename = to_atom(Nodename),
                               config = Config}};
+
         false ->
             {error, {config_nocookie, Info#release.name, Info#release.version}}
     end.

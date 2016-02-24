@@ -35,6 +35,8 @@ main(_) ->
               %"    update <release>       → dynamicly update release~n"
               "    status <release>       → get status information on a release~n~n"
               "Commands for debugging:~n"
+              "    initrel <release>      → initialize release~n"            
+              "    gen_default_conf <release> → generate default configuraion for release~n"            
               "    remsh <release>        → open a remote shell into a release~n"
               "    traceip <port>         → start a TCP trace client (see dbg:trace_client/3)~n"
               "      -h, --host <host> (connect to host instead of localhost)~n"
@@ -46,6 +48,10 @@ main(_) ->
               ++ DebugInfo,
               [SN]).
 
+run("initrel", Argv) ->
+  cli_command("initrel", Argv, 1, match_options());
+run("gen_default_conf", Argv) ->
+  cli_command("gen_default_conf", Argv, 1, match_options());
 run("startfg", Argv) ->
     cli_command("startfg", Argv, 1, match_options() ++ syslog_options() ++ start_options());
 run("stop", Argv) ->
