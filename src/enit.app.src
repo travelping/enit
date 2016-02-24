@@ -2,6 +2,7 @@
    {description, "Dynamic Erlang release management"},
    {applications, [kernel, stdlib, runtime_tools]},
    {registered, []},
+   {vsn, git},
    {env, [{release_dir,  "/var/lib/enit"},
           {config_dir, "/etc/enit"}]}
 ]}.
